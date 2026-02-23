@@ -15,6 +15,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
+import PatientDashboard from "./pages/PatientDashboard";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
 <Route path="/terms" element={<Terms />} />
 <Route path="/appointments" element={<Appointments />} />
 <Route path="/reports" element={<Reports />} />
+<Route path="/patient" element={<PatientDashboard />} />
 
         {/* Optional fallback */}
         <Route path="*" element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>} />
