@@ -11,6 +11,10 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Services from "./pages/Services";
 import Contact from "./pages/Contact";
 import FindDoctor from "./pages/FindDoctor";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Appointments from "./pages/Appointments";
+import Reports from "./pages/Reports";
 
 export default function App() {
   return (
@@ -28,6 +32,11 @@ export default function App() {
 
         <Route path="/doctor" element={<DoctorDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />
+
+        <Route path="/privacy" element={<Privacy />} />
+<Route path="/terms" element={<Terms />} />
+<Route path="/appointments" element={<Appointments />} />
+<Route path="/reports" element={<Reports />} />
 
         {/* Optional fallback */}
         <Route path="*" element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>} />
