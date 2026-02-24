@@ -1,13 +1,53 @@
 import Navbar from "../components/Navbar";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../utils/api";
 
 export default function Register() {
+  const navigate = useNavigate();
+
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // keep your UI values, but convert to backend enums
   const [role, setRole] = useState("patient");
 
-  const onSubmit = (e) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const mapRole = (r) => {
+    if (r === "doctor") return "DOCTOR";
+    if (r === "admin") return "ADMIN";
+    return "PATIENT";
+  };
+
+  const onSubmit = async (e) => {
     e.preventDefault();
-    alert("Registered (UI only). Next step: connect backend + database.");
+    setError("");
+    setLoading(true);
+
+    try {
+      const payload = {
+        fullName,
+        email,
+        password,
+        role: mapRole(role),
+      };
+
+      const res = await api.post("/api/auth/register", payload);
+
+      if (res.data.ok) {
+        alert("Registered ✅ Now login");
+        navigate("/login");
+      } else {
+        setError(res.data.error || "Registration failed");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -18,24 +58,52 @@ export default function Register() {
           <h2>Register</h2>
           <p style={styles.sub}>Create an account (Patient / Doctor / Admin)</p>
 
+          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+
           <form onSubmit={onSubmit} style={styles.form}>
             <label style={styles.label}>Full Name</label>
-            <input style={styles.input} placeholder="Your name" required />
+            <input
+              style={styles.input}
+              placeholder="Your name"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
 
             <label style={styles.label}>Email</label>
-            <input style={styles.input} type="email" placeholder="you@example.com" required />
+            <input
+              style={styles.input}
+              type="email"
+              placeholder="you@example.com"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
 
             <label style={styles.label}>Password</label>
-            <input style={styles.input} type="password" placeholder="••••••••" required />
+            <input
+              style={styles.input}
+              type="password"
+              placeholder="••••••••"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
             <label style={styles.label}>Role</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} style={styles.input}>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={styles.input}
+            >
               <option value="patient">Patient</option>
               <option value="doctor">Doctor</option>
               <option value="admin">Admin</option>
             </select>
 
-            <button style={styles.btn} type="submit">Create Account</button>
+            <button style={styles.btn} type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create Account"}
+            </button>
           </form>
 
           <p style={styles.bottom}>
@@ -71,4 +139,4 @@ const styles = {
     cursor: "pointer",
   },
   bottom: { marginTop: 12 },
-};
+}

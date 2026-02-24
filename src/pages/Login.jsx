@@ -1,20 +1,48 @@
 import Navbar from "../components/Navbar";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { api } from "../utils/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // role dropdown is no longer needed for real login,
+  // but we’ll keep it in UI if you want. We will ignore it.
   const [role, setRole] = useState("patient");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   const navigate = useNavigate();
 
-  const onSubmit = (e) => {
-    e.preventDefault();
+  const goDashboard = (r) => {
+    if (r === "DOCTOR") navigate("/doctor");
+    else if (r === "ADMIN") navigate("/admin");
+    else navigate("/patient");
+  };
 
-    // TEMP (UI-only): route based on role
-    if (role === "doctor") navigate("/doctor");
-    else if (role === "admin") navigate("/admin");
-    else navigate("/"); // patient for now
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await api.post("/api/auth/login", { email, password });
+
+      if (res.data.ok) {
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+
+        goDashboard(res.data.user.role);
+      } else {
+        setError(res.data.error || "Login failed");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -23,11 +51,18 @@ export default function Login() {
       <main style={styles.main}>
         <div style={styles.card}>
           <h2>Login</h2>
-          <p style={styles.sub}>UI only for now (backend will be added later)</p>
+          <p style={styles.sub}>Login using your registered email and password</p>
+
+          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
 
           <form onSubmit={onSubmit} style={styles.form}>
-            <label style={styles.label}>Role</label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} style={styles.input}>
+            {/* Optional UI only - not used in backend */}
+            <label style={styles.label}>Role (optional)</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={styles.input}
+            >
               <option value="patient">Patient</option>
               <option value="doctor">Doctor</option>
               <option value="admin">Admin</option>
@@ -53,7 +88,9 @@ export default function Login() {
               required
             />
 
-            <button style={styles.btn} type="submit">Login</button>
+            <button style={styles.btn} type="submit" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
+            </button>
           </form>
 
           <p style={styles.bottom}>

@@ -16,6 +16,7 @@ import Terms from "./pages/Terms";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
 import PatientDashboard from "./pages/PatientDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
@@ -31,16 +32,39 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        <Route path="/doctor" element={<DoctorDashboard />} />
-        <Route path="/admin" element={<AdminDashboard />} />
+        {/* ✅ Protected Dashboards */}
+        <Route
+          path="/patient"
+          element={
+            <ProtectedRoute allowedRoles={["PATIENT"]}>
+              <PatientDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/doctor"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <DoctorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/privacy" element={<Privacy />} />
-<Route path="/terms" element={<Terms />} />
-<Route path="/appointments" element={<Appointments />} />
-<Route path="/reports" element={<Reports />} />
-<Route path="/patient" element={<PatientDashboard />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/appointments" element={<Appointments />} />
+        <Route path="/reports" element={<Reports />} />
 
-        {/* Optional fallback */}
         <Route path="*" element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>} />
       </Routes>
     </BrowserRouter>
