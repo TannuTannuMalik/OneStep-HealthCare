@@ -1,26 +1,36 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { categorizeSymptoms, recommendDoctors } from "../utils/recommendation";
 import { Link } from "react-router-dom";
+import { api } from "../utils/api";
 
 export default function FindDoctor() {
-  const doctors = useMemo(
-    () => [
-      { id: 1, name: "Dr. Asha Patel", specialty: "General Practice", rating: 4.6, experienceYears: 6, availableToday: true, location: "Auckland" },
-      { id: 2, name: "Dr. Liam Chen", specialty: "Dermatology", rating: 4.4, experienceYears: 8, availableToday: false, location: "Auckland" },
-      { id: 3, name: "Dr. Noah Singh", specialty: "Pulmonology", rating: 4.7, experienceYears: 9, availableToday: true, location: "Wellington" },
-      { id: 4, name: "Dr. Emma Wilson", specialty: "Gastroenterology", rating: 4.3, experienceYears: 5, availableToday: true, location: "Christchurch" },
-      { id: 5, name: "Dr. Mia Roberts", specialty: "Cardiology", rating: 4.8, experienceYears: 10, availableToday: false, location: "Auckland" },
-      { id: 6, name: "Dr. Oliver Martin", specialty: "Ophthalmology", rating: 4.2, experienceYears: 4, availableToday: true, location: "Dunedin" },
-      { id: 7, name: "Dr. Sophia Khan", specialty: "Psychology", rating: 4.5, experienceYears: 7, availableToday: true, location: "Auckland" },
-    ],
-    []
-  );
+  const [doctors, setDoctors] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [doctorError, setDoctorError] = useState("");
 
   const [symptoms, setSymptoms] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [analysis, setAnalysis] = useState(null);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      setDoctorError("");
+      setLoadingDoctors(true);
+      try {
+        const res = await api.get("/api/doctors");
+        if (res.data.ok) setDoctors(res.data.doctors);
+        else setDoctorError(res.data.error || "Failed to load doctors");
+      } catch (err) {
+        setDoctorError(err.response?.data?.error || err.message);
+      } finally {
+        setLoadingDoctors(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
 
   const onAnalyze = () => {
     const a = categorizeSymptoms(symptoms);
@@ -29,8 +39,27 @@ export default function FindDoctor() {
 
   const results = useMemo(() => {
     if (!analysis) return [];
-    return recommendDoctors(doctors, analysis.suggestedSpecialties, onlyAvailable);
+
+    const mapped = doctors.map((d) => {
+      const safeName = d.fullName?.startsWith("Dr") ? d.fullName : `Dr. ${d.fullName}`;
+      return {
+        id: d.id,
+        name: safeName,
+        specialty: d.specialty || "General Practice",
+        rating: Number(d.rating || 0),
+        experienceYears: Number(d.experienceYears || 0),
+        availableToday: !!d.availableToday,
+        location: d.location || "—",
+        photoUrl: d.photoUrl || "",
+        bio: d.bio || "",
+      };
+    });
+
+    return recommendDoctors(mapped, analysis.suggestedSpecialties, onlyAvailable);
   }, [analysis, doctors, onlyAvailable]);
+
+  const defaultImg =
+    "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=600&q=60";
 
   return (
     <div>
@@ -43,7 +72,17 @@ export default function FindDoctor() {
           and recommend suitable doctors (MVP weighted scoring).
         </p>
 
-        {/* Symptom Input */}
+        <section style={styles.card}>
+          <h3 style={styles.h3}>Marketplace Doctors (from Database)</h3>
+          {loadingDoctors && <p>Loading doctors...</p>}
+          {doctorError && <p style={{ color: "red" }}>{doctorError}</p>}
+          {!loadingDoctors && !doctorError && (
+            <p style={{ opacity: 0.8, marginTop: 0 }}>
+              Doctors loaded: <b>{doctors.length}</b>
+            </p>
+          )}
+        </section>
+
         <section style={styles.card}>
           <h3 style={styles.h3}>Symptom Input</h3>
           <textarea
@@ -79,7 +118,6 @@ export default function FindDoctor() {
           )}
         </section>
 
-        {/* Recommendations */}
         {analysis && (
           <section style={styles.card}>
             <h3 style={styles.h3}>Recommended Doctors</h3>
@@ -91,7 +129,15 @@ export default function FindDoctor() {
               {results.map((d) => (
                 <div key={d.id} style={styles.docCard}>
                   <div style={styles.docTop}>
-                    <div style={styles.avatar}>{d.name.split(" ").slice(1, 3).map(s => s[0]).join("")}</div>
+                    <div style={styles.avatarImgWrap}>
+                      <img
+                        src={d.photoUrl || defaultImg}
+                        alt={d.name}
+                        style={styles.avatarImg}
+                        onError={(e) => { e.currentTarget.src = defaultImg; }}
+                      />
+                    </div>
+
                     <div>
                       <div style={styles.docName}>{d.name}</div>
                       <div style={styles.docMeta}>
@@ -109,7 +155,8 @@ export default function FindDoctor() {
                   <div style={styles.score}>
                     <b>Score:</b> {d.score}
                     <div style={styles.breakdown}>
-                      Match {d.breakdown.symptomMatch} • Rating {d.breakdown.ratingScore} • Avail {d.breakdown.availabilityScore} • Exp {d.breakdown.experienceScore}
+                      Match {d.breakdown.symptomMatch} • Rating {d.breakdown.ratingScore} • Avail{" "}
+                      {d.breakdown.availabilityScore} • Exp {d.breakdown.experienceScore}
                     </div>
                   </div>
 
@@ -123,6 +170,12 @@ export default function FindDoctor() {
                   </div>
                 </div>
               ))}
+
+              {results.length === 0 && (
+                <p style={{ marginTop: 12 }}>
+                  No doctors matched yet. Try different symptoms, or ensure doctors have profiles saved.
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -204,17 +257,16 @@ const styles = {
     background: "#fff",
   },
   docTop: { display: "flex", gap: 10, alignItems: "center" },
-  avatar: {
-    width: 42,
-    height: 42,
+  avatarImgWrap: {
+    width: 46,
+    height: 46,
     borderRadius: 999,
-    background: "#eef7f7",
-    color: "#0f7f7c",
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 900,
+    overflow: "hidden",
     border: "1px solid rgba(15,127,124,0.25)",
+    background: "#eef7f7",
+    flex: "0 0 auto",
   },
+  avatarImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   docName: { fontWeight: 900 },
   docMeta: { fontSize: 12, opacity: 0.75, marginTop: 2 },
   metrics: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10, fontWeight: 700, opacity: 0.85 },

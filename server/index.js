@@ -3,22 +3,25 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { pool } from "./db.js";
 import authRoutes from "./routes/auth.js";
+import doctorRoutes from "./routes/doctors.js";
+import uploadRoutes from "./routes/upload.js";
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
 // ✅ Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/doctors", doctorRoutes);
 
 // ✅ Root
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
 });
-
+app.use("/api/upload", uploadRoutes);
 // ✅ Health
 app.get("/health", (req, res) => {
   res.json({ message: "Backend running" });
@@ -34,7 +37,7 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// ✅ Init DB (you can delete later)
+// ✅ Init DB
 app.get("/init-db", async (req, res) => {
   try {
     await pool.query(`
@@ -58,19 +61,33 @@ app.get("/init-db", async (req, res) => {
         bio TEXT,
         location VARCHAR(120),
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        photoUrl VARCHAR(500) NULL,
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 
-    res.json({ ok: true, message: "Tables created ✅" });
+    res.json({ ok: true, message: "Tables created/updated ✅" });
   } catch (err) {
     res.json({ ok: false, error: err.message });
+  }
+});
+app.get("/init-db-v2", async (req, res) => {
+  try {
+    const [cols] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'doctors' AND COLUMN_NAME = 'photoUrl'`
+    );
+
+    if (cols.length === 0) {
+      await pool.query(`ALTER TABLE doctors ADD COLUMN photoUrl VARCHAR(500) NULL`);
+    }
+
+    res.json({ ok: true, message: "DB updated ✅ (photoUrl added if missing)" });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 // ✅ Start server
 const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

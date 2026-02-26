@@ -29,7 +29,6 @@ export default function DoctorDashboard() {
 
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [selectedPatientId, setSelectedPatientId] = useState(patients[0].id);
-
   const selectedPatient = patients.find((p) => p.id === selectedPatientId);
 
   // Logged in user
@@ -54,6 +53,16 @@ export default function DoctorDashboard() {
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
 
+  // ✅ Photo states
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState("");
+  const [photoErr, setPhotoErr] = useState("");
+
+  const defaultImg =
+    "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=60";
+
   // Ensure only doctor can stay here
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -66,6 +75,8 @@ export default function DoctorDashboard() {
     const load = async () => {
       setProfileErr("");
       setProfileMsg("");
+      setPhotoErr("");
+      setPhotoMsg("");
       setLoadingProfile(true);
       try {
         const res = await api.get("/api/doctors/me");
@@ -77,6 +88,7 @@ export default function DoctorDashboard() {
             location: d.location || "",
             bio: d.bio || "",
           });
+          setPhotoUrl(d.photoUrl || "");
         }
       } catch (e) {
         setProfileErr(e.response?.data?.error || e.message);
@@ -124,6 +136,39 @@ export default function DoctorDashboard() {
     }
   };
 
+  // ✅ Upload / change doctor photo
+  const uploadPhoto = async () => {
+    setPhotoErr("");
+    setPhotoMsg("");
+
+    if (!photoFile) {
+      setPhotoErr("Please choose an image first.");
+      return;
+    }
+
+    try {
+      setPhotoUploading(true);
+      const formData = new FormData();
+      formData.append("photo", photoFile); // ✅ must match upload.single("photo")
+
+      const res = await api.post("/api/upload/doctor-photo", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.ok) {
+        setPhotoUrl(res.data.photoUrl);
+        setPhotoMsg("Photo updated ✅");
+        setPhotoFile(null);
+      } else {
+        setPhotoErr(res.data.error || "Upload failed");
+      }
+    } catch (e) {
+      setPhotoErr(e.response?.data?.error || e.message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const displayName = user?.fullName ? user.fullName : "Doctor";
 
   return (
@@ -159,7 +204,6 @@ export default function DoctorDashboard() {
 
           {/* Main */}
           <main className="doc-main">
-            {/* Top search */}
             <div className="doc-topbar">
               <div className="doc-search">
                 <span style={{ opacity: 0.6 }}>🔎</span>
@@ -167,12 +211,10 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            {/* Greeting */}
             <div className="doc-greet">
               Good Morning <span>Dr. {displayName}</span>
             </div>
 
-            {/* Hero + Stats (still demo) */}
             <section className="doc-hero">
               <div>
                 <h3>Visits for Today</h3>
@@ -196,16 +238,11 @@ export default function DoctorDashboard() {
               </div>
 
               <div className="doc-hero-photo">
-                <img
-                  src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=60"
-                  alt="Doctor"
-                />
+                <img src={defaultImg} alt="Doctor" />
               </div>
             </section>
 
-            {/* Bottom: Patient list + Consultation */}
             <section className="doc-bottom">
-              {/* Patient List (demo for now) */}
               <div className="doc-card">
                 <div className="doc-card-title">
                   <h4>Patient List</h4>
@@ -228,7 +265,6 @@ export default function DoctorDashboard() {
                 ))}
               </div>
 
-              {/* Consultation (demo) */}
               <div className="doc-card">
                 <div className="doc-card-title">
                   <h4>Consultation</h4>
@@ -266,10 +302,60 @@ export default function DoctorDashboard() {
 
               <div className="profile">
                 <img
-                  src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&q=60"
+                  src={photoUrl || defaultImg}
                   alt="Profile"
+                  onError={(e) => (e.currentTarget.src = defaultImg)}
                 />
                 <div style={{ fontWeight: 800, fontSize: 13 }}>Dr. {displayName}</div>
+              </div>
+            </div>
+
+            {/* ✅ Upload / Change Photo */}
+            <div className="news" style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>PROFILE PHOTO</div>
+
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 999, overflow: "hidden", border: "1px solid #ddd" }}>
+                  <img
+                    src={photoUrl || defaultImg}
+                    alt="Doctor"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    onError={(e) => (e.currentTarget.src = defaultImg)}
+                  />
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 900 }}>Dr. {displayName}</div>
+                  <div style={{ fontSize: 12, opacity: 0.75 }}>Upload / Change your photo</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                />
+
+                <button
+                  type="button"
+                  onClick={uploadPhoto}
+                  disabled={photoUploading}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    border: "none",
+                    background: "#222",
+                    color: "#fff",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  {photoUploading ? "Uploading..." : "Upload Photo"}
+                </button>
+
+                {photoMsg && <div style={{ color: "green", fontWeight: 700 }}>{photoMsg}</div>}
+                {photoErr && <div style={{ color: "red", fontWeight: 700 }}>{photoErr}</div>}
               </div>
             </div>
 
@@ -338,7 +424,7 @@ export default function DoctorDashboard() {
               )}
             </div>
 
-            {/* Calendar + Upcoming can stay demo */}
+            {/* Calendar + Upcoming demo */}
             <div className="calendar">
               <div className="cal-head">
                 <b>Calendar</b>
@@ -379,7 +465,6 @@ export default function DoctorDashboard() {
                 </div>
               </div>
             </div>
-
           </aside>
         </div>
       </div>
