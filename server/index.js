@@ -87,6 +87,51 @@ app.get("/init-db-v2", async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+app.get("/init-db-v3", async (req, res) => {
+  try {
+    // ✅ Doctor weekly availability table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS doctor_availability (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        doctorId INT NOT NULL,
+        dayOfWeek TINYINT NOT NULL, 
+        startTime TIME NOT NULL,
+        endTime TIME NOT NULL,
+        slotMinutes INT NOT NULL DEFAULT 30,
+        isActive BOOLEAN NOT NULL DEFAULT TRUE,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
+        INDEX idx_doctor_day (doctorId, dayOfWeek)
+      )
+    `);
+
+    // ✅ Appointments table (professional workflow)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        doctorId INT NOT NULL,
+        patientId INT NOT NULL,
+        appointmentType ENUM('VIDEO','IN_PERSON') NOT NULL DEFAULT 'VIDEO',
+        requestedStart DATETIME NOT NULL,
+        requestedEnd DATETIME NOT NULL,
+        status ENUM('REQUESTED','CONFIRMED','REJECTED','CANCELLED','COMPLETED') NOT NULL DEFAULT 'REQUESTED',
+        patientNote TEXT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
+        FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
+
+        INDEX idx_doctor_status (doctorId, status),
+        INDEX idx_patient_status (patientId, status),
+        INDEX idx_requestedStart (requestedStart)
+      )
+    `);
+
+    res.json({ ok: true, message: "DB updated ✅ (availability + appointments tables created)" });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 // ✅ Start server
 const PORT = process.env.PORT || 5000;
