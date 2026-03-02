@@ -3,7 +3,7 @@ import multer from "multer";
 import streamifier from "streamifier";
 import cloudinary from "../utils/cloudinary.js";
 import { pool } from "../db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { authRequired, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ const upload = multer({
 
 router.post(
   "/doctor-photo",
-  requireAuth,
+  authRequired,
   requireRole("DOCTOR"),
   upload.single("photo"),
   async (req, res) => {
