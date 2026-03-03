@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { pool } from "../db.js";
+import { authRequired } from "../middleware/auth.js";
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
@@ -79,5 +80,8 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-
+// ✅ Get current logged-in user (DEBUG)
+router.get("/me", authRequired, (req, res) => {
+  res.json({ ok: true, user: req.user });
+});
 export default router;
