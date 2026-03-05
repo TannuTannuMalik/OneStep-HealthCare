@@ -1,18 +1,27 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import http from "http";
+import { Server } from "socket.io";
 import { pool } from "./db.js";
 
 import authRoutes from "./routes/auth.js";
 import doctorRoutes from "./routes/doctors.js";
 import uploadRoutes from "./routes/upload.js";
 import appointmentsRoutes from "./routes/appointments.js";
+import reportsRoutes from "./routes/reports.js"; // ✅ NEW
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: "http://localhost:5173" }));
+// ✅ CORS (Express)
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // ✅ Routes
@@ -20,6 +29,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/reports", reportsRoutes); // ✅ NEW
 
 // ✅ Root
 app.get("/", (req, res) => {
@@ -51,6 +61,15 @@ app.get("/describe-appointments", async (req, res) => {
   }
 });
 
+// ✅ Show consultation_reports table columns (SAFE: no delete)
+app.get("/describe-reports", async (req, res) => {
+  try {
+    const [rows] = await pool.query("DESCRIBE consultation_reports");
+    res.json({ ok: true, rows });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
 
 // ✅ Init DB (users + doctors)
 app.get("/init-db", async (req, res) => {
@@ -110,7 +129,6 @@ app.get("/init-db-v2", async (req, res) => {
 // ✅ Init DB v3 (availability + appointments workflow)
 app.get("/init-db-v3", async (req, res) => {
   try {
-    // ✅ Doctor weekly availability table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS doctor_availability (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,7 +144,6 @@ app.get("/init-db-v3", async (req, res) => {
       )
     `);
 
-    // ✅ Appointments table (professional workflow)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS appointments (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -156,6 +173,50 @@ app.get("/init-db-v3", async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ✅ Init DB v4 (consultation reports)
+app.get("/init-db-v4", async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS consultation_reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+
+        appointmentId INT NOT NULL,
+        doctorId INT NOT NULL,
+        patientId INT NOT NULL,
+
+        diagnosis VARCHAR(255),
+        prescription TEXT,
+        doctorNotes TEXT,
+        improvementSuggestions TEXT,
+        followUpDate DATETIME,
+
+        pdfUrl TEXT,
+        pdfHash CHAR(64),
+        hashTimestamp TIMESTAMP NULL,
+
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE KEY unique_appointment_report (appointmentId),
+
+        FOREIGN KEY (appointmentId) REFERENCES appointments(id) ON DELETE CASCADE,
+        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
+        FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
+
+        INDEX idx_patient_createdAt (patientId, createdAt),
+        INDEX idx_doctor_createdAt (doctorId, createdAt)
+      )
+    `);
+
+    res.json({
+      ok: true,
+      message: "DB updated ✅ (consultation_reports table created)",
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ✅ Which DB am I connected to?
 app.get("/debug-db-info", async (req, res) => {
   try {
@@ -179,6 +240,45 @@ app.get("/debug-user/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
-// ✅ Start server
+
+/* ---------------------------
+   ✅ SOCKET.IO SETUP
+----------------------------*/
+
+// ✅ Create HTTP server from Express app
+const server = http.createServer(app);
+
+// ✅ Attach Socket.io to server
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST", "PATCH"],
+    credentials: true,
+  },
+});
+
+// ✅ Make io available in routes as req.io
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// ✅ Socket events
+io.on("connection", (socket) => {
+  console.log("✅ Socket connected:", socket.id);
+
+  // join room for a user
+  socket.on("join", ({ userId }) => {
+    if (!userId) return;
+    socket.join(`user:${userId}`);
+    console.log(`👤 Joined room user:${userId}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ Socket disconnected:", socket.id);
+  });
+});
+
+// ✅ Start server (IMPORTANT: server.listen not app.listen)
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

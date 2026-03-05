@@ -1,35 +1,92 @@
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Link } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { socket } from "../utils/socket";
+import { api } from "../utils/api";
 
 export default function PatientDashboard() {
-  // Dummy MVP data (later replace with API + MySQL)
-  const upcomingAppointments = [
-    {
-      id: 1,
-      doctor: "Dr. Asha Patel",
-      specialty: "General Practice",
-      date: "25 Feb 2026",
-      time: "10:30 AM",
-      type: "Video",
-      status: "Confirmed",
-    },
-  ];
+  const [appointments, setAppointments] = useState([]);
+  const [reports, setReports] = useState([]);
 
-  const recentReports = [
-    {
-      id: "RPT-12345",
-      doctor: "Dr. Noah Singh",
-      date: "10 Feb 2026",
-      verified: true,
-    },
-    {
-      id: "RPT-12346",
-      doctor: "Dr. Emma Wilson",
-      date: "05 Feb 2026",
-      verified: true,
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState("");
+
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const loadAppointments = async () => {
+    const res = await api.get("/api/appointments/patient/me");
+    if (res.data.ok) setAppointments(res.data.data || []);
+    else throw new Error(res.data.error || "Failed to load appointments");
+  };
+
+  const loadReports = async () => {
+    const res = await api.get("/api/reports/patient/me");
+    if (res.data.ok) setReports(res.data.data || []);
+    else throw new Error(res.data.error || "Failed to load reports");
+  };
+
+  // ✅ Download PDF correctly (token included + real PDF file)
+  const downloadReport = async (reportId) => {
+    try {
+      const res = await api.get(`/api/reports/${reportId}/download`, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `report_${reportId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("download report error:", e);
+      alert(e.response?.data?.error || e.message || "Download failed");
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setErrMsg("");
+      try {
+        await Promise.all([loadAppointments(), loadReports()]);
+      } catch (e) {
+        console.error(e);
+        setErrMsg(e.response?.data?.error || e.message || "Something went wrong");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    socket.emit("join", { userId: user.id });
+
+    const onStatus = () => loadAppointments().catch(console.error);
+    const onReport = () => loadReports().catch(console.error);
+
+    socket.on("appointment_status", onStatus);
+    socket.on("report_ready", onReport);
+
+    return () => {
+      socket.off("appointment_status", onStatus);
+      socket.off("report_ready", onReport);
+    };
+  }, [user?.id]);
 
   return (
     <div>
@@ -39,9 +96,7 @@ export default function PatientDashboard() {
         <div style={styles.headerRow}>
           <div>
             <h1 style={{ margin: 0 }}>Patient Dashboard</h1>
-            <p style={styles.sub}>
-              Manage your appointments, view reports, and book a doctor (MVP UI).
-            </p>
+            <p style={styles.sub}>Manage your appointments, view reports, and book a doctor.</p>
           </div>
 
           <Link to="/find-doctor" style={styles.primaryBtn}>
@@ -49,20 +104,25 @@ export default function PatientDashboard() {
           </Link>
         </div>
 
-        {/* Quick Cards */}
+        {errMsg && (
+          <div style={{ marginTop: 12, color: "crimson", fontWeight: 800 }}>
+            Error: {errMsg}
+          </div>
+        )}
+
         <section style={styles.statsGrid}>
           <div style={styles.statCard}>
-            <div style={styles.statLabel}>Upcoming Appointments</div>
-            <div style={styles.statValue}>{upcomingAppointments.length}</div>
+            <div style={styles.statLabel}>Appointments</div>
+            <div style={styles.statValue}>{appointments.length}</div>
           </div>
 
           <div style={styles.statCard}>
-            <div style={styles.statLabel}>Reports Available</div>
-            <div style={styles.statValue}>{recentReports.length}</div>
+            <div style={styles.statLabel}>Reports</div>
+            <div style={styles.statValue}>{reports.length}</div>
           </div>
 
           <div style={styles.statCard}>
-            <div style={styles.statLabel}>Account Status</div>
+            <div style={styles.statLabel}>Account</div>
             <div style={styles.statValueSmall}>Active</div>
           </div>
         </section>
@@ -76,26 +136,26 @@ export default function PatientDashboard() {
             </Link>
           </div>
 
-          {upcomingAppointments.length === 0 ? (
-            <p style={styles.empty}>No upcoming appointments.</p>
+          {loading ? (
+            <p style={styles.empty}>Loading appointments...</p>
+          ) : appointments.length === 0 ? (
+            <p style={styles.empty}>No appointments found.</p>
           ) : (
-            upcomingAppointments.map((a) => (
+            appointments.map((a) => (
               <div key={a.id} style={styles.rowCard}>
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>{a.doctor}</b> <span style={styles.dot}>•</span>{" "}
+                    <b>{a.doctorName}</b> <span style={styles.dot}>•</span>{" "}
                     <span style={styles.muted}>{a.specialty}</span>
                   </div>
                   <div style={styles.muted}>
-                    {a.date} • {a.time} • {a.type}
+                    {a.requestedStart ? new Date(a.requestedStart).toLocaleString() : "No time"}
+                    {" • "}
+                    {a.appointmentType}
                   </div>
                 </div>
-
                 <div style={styles.right}>
                   <span style={styles.badge}>{a.status}</span>
-                  <button style={styles.outlineBtn} onClick={() => alert("Join meeting (demo)")}>
-                    Join
-                  </button>
                 </div>
               </div>
             ))
@@ -111,24 +171,34 @@ export default function PatientDashboard() {
             </Link>
           </div>
 
-          {recentReports.length === 0 ? (
+          {loading ? (
+            <p style={styles.empty}>Loading reports...</p>
+          ) : reports.length === 0 ? (
             <p style={styles.empty}>No reports yet.</p>
           ) : (
-            recentReports.map((r) => (
+            reports.map((r) => (
               <div key={r.id} style={styles.rowCard}>
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>{r.id}</b> <span style={styles.dot}>•</span>{" "}
-                    <span style={styles.muted}>{r.doctor}</span>
+                    <b>Report #{r.id}</b> <span style={styles.dot}>•</span>{" "}
+                    <span style={styles.muted}>{r.doctorName}</span>
                   </div>
-                  <div style={styles.muted}>Date: {r.date}</div>
+                  <div style={styles.muted}>
+                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "No date"}
+                  </div>
                 </div>
 
                 <div style={styles.right}>
-                  <span style={r.verified ? styles.verified : styles.notVerified}>
-                    {r.verified ? "Verified ✅" : "Not verified ❌"}
+                  <span style={r.pdfHash ? styles.verified : styles.pending}>
+                    {r.pdfHash ? "Verified ✅" : "Pending ⏳"}
                   </span>
-                  <button style={styles.outlineBtn} onClick={() => alert("Download PDF (demo)")}>
+
+                  <button
+                    type="button"
+                    style={styles.outlineBtn}
+                    disabled={!r.pdfUrl}
+                    onClick={() => downloadReport(r.id)}
+                  >
                     Download PDF
                   </button>
                 </div>
@@ -137,7 +207,6 @@ export default function PatientDashboard() {
           )}
         </section>
 
-        {/* Notes */}
         <div style={styles.note}>
           <b>Reminder:</b> This platform provides guidance only and does not give medical diagnosis.
         </div>
@@ -158,7 +227,6 @@ const styles = {
     flexWrap: "wrap",
   },
   sub: { marginTop: 6, opacity: 0.8 },
-
   primaryBtn: {
     textDecoration: "none",
     background: "#0f7f7c",
@@ -174,34 +242,14 @@ const styles = {
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14,
   },
-  statCard: {
-    background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
-  },
+  statCard: { background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16 },
   statLabel: { fontSize: 12, opacity: 0.75, fontWeight: 900, marginBottom: 6 },
   statValue: { fontSize: 34, fontWeight: 900, color: "#0f7f7c" },
   statValueSmall: { fontSize: 18, fontWeight: 900, color: "#0f7f7c" },
 
-  card: {
-    marginTop: 16,
-    background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
-  },
-  cardTitle: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  linkBtn: {
-    textDecoration: "none",
-    color: "#0f7f7c",
-    fontWeight: 900,
-  },
+  card: { marginTop: 16, background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16 },
+  cardTitle: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  linkBtn: { textDecoration: "none", color: "#0f7f7c", fontWeight: 900 },
 
   rowCard: {
     display: "flex",
@@ -238,6 +286,7 @@ const styles = {
     padding: "8px 12px",
     fontWeight: 900,
     cursor: "pointer",
+    textDecoration: "none",
   },
 
   verified: {
@@ -248,17 +297,16 @@ const styles = {
     padding: "6px 10px",
     borderRadius: 999,
   },
-  notVerified: {
+  pending: {
     fontSize: 12,
     fontWeight: 900,
-    color: "#9c2a2a",
-    background: "#ffe3e3",
+    color: "#8a5b00",
+    background: "#fff3cd",
     padding: "6px 10px",
     borderRadius: 999,
   },
 
   empty: { opacity: 0.75 },
-
   note: {
     marginTop: 16,
     padding: 12,

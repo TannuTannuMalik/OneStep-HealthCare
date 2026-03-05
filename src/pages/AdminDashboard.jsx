@@ -1,13 +1,45 @@
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
+import { useEffect } from "react";
+import { socket } from "../utils/socket";
 
 export default function AdminDashboard() {
+  // ✅ get admin user from localStorage (same style as DoctorDashboard)
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // ✅ Admin can join too (optional)
+    socket.emit("join", { userId: user.id });
+
+    // ✅ Admin can listen to global updates if you emit them
+    socket.on("appointment_status", (payload) => {
+      console.log("appointment_status:", payload);
+    });
+
+    socket.on("report_ready", (payload) => {
+      console.log("report_ready:", payload);
+    });
+
+    return () => {
+      socket.off("appointment_status");
+      socket.off("report_ready");
+    };
+  }, [user?.id]);
+
   const items = [
     { label: "Dashboard", to: "/admin" },
-    { label: "Users", to: "/admin" },
-    { label: "Doctors", to: "/admin" },
-    { label: "Appointments", to: "/admin" },
-    { label: "Analytics", to: "/admin" },
+    { label: "Users", to: "/admin/users" },
+    { label: "Doctors", to: "/admin/doctors" },
+    { label: "Appointments", to: "/admin/appointments" },
+    { label: "Analytics", to: "/admin/analytics" },
   ];
 
   return (

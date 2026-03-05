@@ -13,11 +13,12 @@ import Contact from "./pages/Contact";
 import FindDoctor from "./pages/FindDoctor";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import BookAppointment from "./pages/BookAppointment";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
 import PatientDashboard from "./pages/PatientDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
-
+import CreateReport from "./pages/CreateReport";
 export default function App() {
   return (
     <BrowserRouter>
@@ -41,7 +42,22 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
+<Route
+  path="/book/:doctorId"
+  element={
+    <ProtectedRoute allowedRoles={["PATIENT"]}>
+      <BookAppointment />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/doctor/report/:appointmentId"
+  element={
+    <ProtectedRoute allowedRoles={["DOCTOR"]}>
+      <CreateReport />
+    </ProtectedRoute>
+  }
+/>
         <Route
           path="/doctor"
           element={
