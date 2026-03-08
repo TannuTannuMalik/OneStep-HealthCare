@@ -8,15 +8,14 @@ export default function Reports() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
+  const [verifying, setVerifying] = useState({});
 
   const loadReports = async () => {
     setLoading(true);
     setErrMsg("");
-
     try {
       const res = await api.get("/api/reports/patient/me");
       if (res.data.ok) {
-        // backend returns: { ok:true, data:[...] }
         setReports(res.data.data || []);
       } else {
         setErrMsg(res.data.error || "Failed to load reports");
@@ -28,7 +27,24 @@ export default function Reports() {
     }
   };
 
-  // ✅ Download PDF correctly (token included + real PDF file)
+  const verifyReport = async (reportId) => {
+    setVerifying((v) => ({ ...v, [reportId]: true }));
+    try {
+      const res = await api.get(`/api/reports/${reportId}/verify`);
+      const { tampered, dbMatch, chainMatch, blockchainTx } = res.data.data;
+
+      if (!tampered) {
+        alert(`✅ Report #${reportId} is AUTHENTIC\n\nDB Check: ${dbMatch ? "✅ Pass" : "❌ Fail"}\nBlockchain Check: ${chainMatch ? "✅ Pass" : "❌ Fail"}\n\nTx: ${blockchainTx}`);
+      } else {
+        alert(`🚨 Report #${reportId} has been TAMPERED!\n\nDB Check: ${dbMatch ? "✅ Pass" : "❌ Fail"}\nBlockchain Check: ${chainMatch ? "✅ Pass" : "❌ Fail"}`);
+      }
+    } catch (e) {
+      alert("Verification failed: " + (e.response?.data?.error || e.message));
+    } finally {
+      setVerifying((v) => ({ ...v, [reportId]: false }));
+    }
+  };
+
   const downloadReport = async (reportId) => {
     try {
       const res = await api.get(`/api/reports/${reportId}/download`, {
@@ -52,7 +68,6 @@ export default function Reports() {
     }
   };
 
-  // ✅ View PDF in new tab (also uses backend so browser treats it as PDF)
   const viewReport = (reportId) => {
     window.open(`http://localhost:5000/api/reports/${reportId}/download`, "_blank");
   };
@@ -96,7 +111,8 @@ export default function Reports() {
           </div>
         ) : (
           reports.map((r) => {
-            const verified = !!r.pdfHash; // if hash exists = verified
+            const verified = !!r.pdfHash;
+            const hasBlockchain = !!r.blockchainTx;
             return (
               <div key={r.id} style={styles.card}>
                 <div style={styles.cardHeader}>
@@ -110,29 +126,34 @@ export default function Reports() {
                     <div style={{ opacity: 0.8, marginTop: 4 }}>
                       <b>Date:</b> {r.createdAt ? new Date(r.createdAt).toLocaleString() : "—"}
                     </div>
+
+                    {hasBlockchain && (
+                      <div style={{ marginTop: 4, fontSize: 12, color: "#1b7a3c" }}>
+                        ⛓️ <b>Blockchain Tx:</b> {r.blockchainTx.slice(0, 20)}...
+                      </div>
+                    )}
                   </div>
 
-                  <span style={verified ? styles.verified : styles.pending}>
-                    {verified ? "Verified ✅" : "Pending ⏳"}
-                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                    <span style={verified ? styles.verified : styles.pending}>
+                      {verified ? "Verified ✅" : "Pending ⏳"}
+                    </span>
+                    {hasBlockchain && (
+                      <span style={styles.blockchain}>⛓️ On Blockchain</span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Optional preview info */}
+                {/* Preview info */}
                 <div style={{ marginTop: 10, lineHeight: 1.6 }}>
                   {r.diagnosis && (
-                    <div>
-                      <b>Diagnosis:</b> {r.diagnosis}
-                    </div>
+                    <div><b>Diagnosis:</b> {r.diagnosis}</div>
                   )}
                   {r.prescription && (
-                    <div>
-                      <b>Prescription:</b> {r.prescription}
-                    </div>
+                    <div><b>Prescription:</b> {r.prescription}</div>
                   )}
                   {r.improvementSuggestions && (
-                    <div>
-                      <b>Suggestions:</b> {r.improvementSuggestions}
-                    </div>
+                    <div><b>Suggestions:</b> {r.improvementSuggestions}</div>
                   )}
                 </div>
 
@@ -146,6 +167,17 @@ export default function Reports() {
                       <button type="button" style={styles.btnOutline} onClick={() => downloadReport(r.id)}>
                         Download PDF
                       </button>
+
+                      {hasBlockchain && (
+                        <button
+                          type="button"
+                          style={styles.btnVerify}
+                          onClick={() => verifyReport(r.id)}
+                          disabled={verifying[r.id]}
+                        >
+                          {verifying[r.id] ? "Verifying..." : "🔍 Verify Integrity"}
+                        </button>
+                      )}
                     </>
                   ) : (
                     <div style={{ opacity: 0.8 }}>
@@ -206,7 +238,6 @@ const styles = {
     border: "none",
     borderRadius: "6px",
     cursor: "pointer",
-    textDecoration: "none",
     fontWeight: 900,
   },
   btnOutline: {
@@ -216,7 +247,15 @@ const styles = {
     color: "#0f7f7c",
     borderRadius: "6px",
     cursor: "pointer",
-    textDecoration: "none",
+    fontWeight: 900,
+  },
+  btnVerify: {
+    padding: "10px 16px",
+    background: "#1b7a3c",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
     fontWeight: 900,
   },
   verified: {
@@ -233,6 +272,15 @@ const styles = {
     fontWeight: 900,
     color: "#8a5b00",
     background: "#fff3cd",
+    padding: "6px 10px",
+    borderRadius: 999,
+    height: "fit-content",
+  },
+  blockchain: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#1a3a6b",
+    background: "#dce8ff",
     padding: "6px 10px",
     borderRadius: 999,
     height: "fit-content",
