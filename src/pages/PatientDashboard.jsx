@@ -1,7 +1,7 @@
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Link } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { socket } from "../utils/socket";
 import { api } from "../utils/api";
 
@@ -12,6 +12,11 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
 
+  // ✅ Toast state
+  const [toast, setToast] = useState({ show: false, message: "", type: "info" });
+  const toastTimerRef = useRef(null);
+
+  // Logged in user
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "null");
@@ -19,6 +24,15 @@ export default function PatientDashboard() {
       return null;
     }
   }, []);
+
+  const showToast = (message, type = "info") => {
+    setToast({ show: true, message, type });
+
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToast((t) => ({ ...t, show: false }));
+    }, 3500);
+  };
 
   const loadAppointments = async () => {
     const res = await api.get("/api/appointments/patient/me");
@@ -50,12 +64,17 @@ export default function PatientDashboard() {
       a.remove();
 
       window.URL.revokeObjectURL(url);
+
+      showToast(`Report #${reportId} downloaded ✅`, "success");
     } catch (e) {
       console.error("download report error:", e);
-      alert(e.response?.data?.error || e.message || "Download failed");
+      const msg = e.response?.data?.error || e.message || "Download failed";
+      showToast(msg, "error");
+      alert(msg);
     }
   };
 
+  // Initial load
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -71,13 +90,24 @@ export default function PatientDashboard() {
     })();
   }, []);
 
+  // Socket setup
   useEffect(() => {
     if (!user?.id) return;
 
     socket.emit("join", { userId: user.id });
 
-    const onStatus = () => loadAppointments().catch(console.error);
-    const onReport = () => loadReports().catch(console.error);
+    const onStatus = (payload) => {
+      loadAppointments().catch(console.error);
+      showToast(`Appointment updated: ${payload?.status || "changed"}`, "info");
+    };
+
+    const onReport = (payload) => {
+      loadReports().catch(console.error);
+      showToast(
+        `New report is ready ✅ ${payload?.reportId ? `(Report #${payload.reportId})` : ""}`,
+        "success"
+      );
+    };
 
     socket.on("appointment_status", onStatus);
     socket.on("report_ready", onReport);
@@ -88,9 +118,56 @@ export default function PatientDashboard() {
     };
   }, [user?.id]);
 
+  // Cleanup toast timer
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   return (
     <div>
       <Navbar />
+
+      {/* ✅ Toast UI */}
+      {toast.show && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 9999,
+            padding: "12px 14px",
+            borderRadius: 12,
+            fontWeight: 900,
+            boxShadow: "0 8px 22px rgba(0,0,0,0.12)",
+            background:
+              toast.type === "success"
+                ? "#dff7e6"
+                : toast.type === "error"
+                ? "#ffe3e3"
+                : "#eef7f7",
+            color:
+              toast.type === "success"
+                ? "#1b7a3c"
+                : toast.type === "error"
+                ? "#9c2a2a"
+                : "#0f7f7c",
+            border:
+              toast.type === "success"
+                ? "1px solid rgba(27,122,60,0.25)"
+                : toast.type === "error"
+                ? "1px solid rgba(156,42,42,0.25)"
+                : "1px solid rgba(15,127,124,0.25)",
+            maxWidth: 360,
+            cursor: "pointer",
+          }}
+          onClick={() => setToast((t) => ({ ...t, show: false }))}
+          title="Click to dismiss"
+        >
+          {toast.message}
+        </div>
+      )}
 
       <main style={styles.page}>
         <div style={styles.headerRow}>

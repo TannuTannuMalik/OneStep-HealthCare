@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "./DoctorDashboard.css";
 import { api } from "../utils/api";
 import { socket } from "../utils/socket";
@@ -60,7 +60,7 @@ export default function DoctorDashboard() {
   // Report form state
   const [diagnosis, setDiagnosis] = useState("");
   const [prescription, setPrescription] = useState("");
-  const [notes, setNotes] = useState("");
+  const [doctorNotes, setDoctorNotes] = useState("");
   const [improvementSuggestions, setImprovementSuggestions] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
 
@@ -86,6 +86,7 @@ export default function DoctorDashboard() {
       setPhotoErr("");
       setPhotoMsg("");
       setLoadingProfile(true);
+
       try {
         const res = await api.get("/api/doctors/me");
         if (res.data.ok && res.data.doctor) {
@@ -142,18 +143,21 @@ export default function DoctorDashboard() {
 
     socket.emit("join", { userId: user.id });
 
-    socket.on("appointment_status", (payload) => {
+    const onStatus = (payload) => {
       console.log("Doctor received appointment_status:", payload);
       loadAppointments();
-    });
+    };
 
-    socket.on("report_ready", (payload) => {
+    const onReport = (payload) => {
       console.log("Doctor received report_ready:", payload);
-    });
+    };
+
+    socket.on("appointment_status", onStatus);
+    socket.on("report_ready", onReport);
 
     return () => {
-      socket.off("appointment_status");
-      socket.off("report_ready");
+      socket.off("appointment_status", onStatus);
+      socket.off("report_ready", onReport);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -166,7 +170,6 @@ export default function DoctorDashboard() {
 
   const onSidebarClick = (key) => {
     if (key === "logout") return handleLogout();
-    // Keep future menu switching if you need it later
   };
 
   const onProfileChange = (e) => {
@@ -261,7 +264,7 @@ export default function DoctorDashboard() {
         appointmentId: selectedAppointment.id,
         diagnosis,
         prescription,
-        notes,
+        doctorNotes, // ✅ must match backend field name
         improvementSuggestions,
         followUpDate: followUpDate || null,
       });
@@ -270,7 +273,7 @@ export default function DoctorDashboard() {
         setReportMsg("Report created ✅ PDF generated + saved.");
         setDiagnosis("");
         setPrescription("");
-        setNotes("");
+        setDoctorNotes("");
         setImprovementSuggestions("");
         setFollowUpDate("");
       } else {
@@ -282,9 +285,7 @@ export default function DoctorDashboard() {
       setCreatingReport(false);
     }
   };
-<Link to={`/doctor/report/${a.id}`} style={styles.btn}>
-  Create Report
-</Link>
+
   const totalAppts = appointments.length;
 
   return (
@@ -424,11 +425,29 @@ export default function DoctorDashboard() {
                       <b>Status:</b> {selectedAppointment.status}
                     </div>
 
-                    {/* ✅ Report UI */}
+                    {/* ✅ Create Report UI */}
                     <div className="note-box" style={{ marginTop: 10 }}>
                       <b>Create Consultation Report</b>
 
-                      <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                      {/* ✅ Optional: route to separate page */}
+                      <div style={{ marginTop: 10 }}>
+                        <Link
+                          to={`/doctor/report/${selectedAppointment.id}`}
+                          style={{
+                            display: "inline-block",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            background: "#222",
+                            color: "white",
+                            fontWeight: 900,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Open Full Report Page
+                        </Link>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
                         <button
                           type="button"
                           onClick={() => markCompleted(selectedAppointment.id)}
@@ -462,9 +481,9 @@ export default function DoctorDashboard() {
                         />
 
                         <textarea
-                          placeholder="Notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Doctor Notes"
+                          value={doctorNotes}
+                          onChange={(e) => setDoctorNotes(e.target.value)}
                           rows={3}
                           style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
                         />
