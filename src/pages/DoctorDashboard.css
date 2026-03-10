@@ -470,3 +470,20 @@
     grid-template-columns: 1fr;
   }
 }
+.join-call-btn {
+  margin-top: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #0f7f7c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.18s;
+}
+
+.join-call-btn:hover {
+  background: #0d6e6b;
+}
