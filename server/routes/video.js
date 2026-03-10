@@ -6,23 +6,20 @@ const router = express.Router();
 
 /**
  * GET /api/video/check/:appointmentId
- * Called by both DOCTOR and PATIENT before entering the call.
- * Validates:
- *   1. The user actually belongs to this appointment
- *   2. The appointment type is VIDEO
- *   3. The appointment is CONFIRMED
+ * Only the correct patient or correct doctor can join.
+ * Only VIDEO + CONFIRMED appointments can join.
+ * Join allowed only from 10 minutes before start until appointment end.
  */
 router.get("/check/:appointmentId", authRequired, async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const userId = req.user.id;
-    const role   = req.user.role;
+    const role = req.user.role;
 
-    let query, params;
+    let query;
+    let params;
 
     if (role === "PATIENT") {
-      // Patient — make sure this appointment belongs to them
-      // peerName = the doctor's name
       query = `
         SELECT
           a.id,
@@ -32,15 +29,12 @@ router.get("/check/:appointmentId", authRequired, async (req, res) => {
           a.appointmentType,
           u.fullName AS peerName
         FROM appointments a
-        JOIN doctors  d ON a.doctorId  = d.id
-        JOIN users    u ON d.userId    = u.id
+        JOIN doctors d ON a.doctorId = d.id
+        JOIN users u ON d.userId = u.id
         WHERE a.id = ? AND a.patientId = ?
       `;
       params = [appointmentId, userId];
-
     } else if (role === "DOCTOR") {
-      // Doctor — make sure this appointment belongs to them
-      // peerName = the patient's name
       query = `
         SELECT
           a.id,
@@ -50,14 +44,16 @@ router.get("/check/:appointmentId", authRequired, async (req, res) => {
           a.appointmentType,
           u.fullName AS peerName
         FROM appointments a
-        JOIN doctors d ON a.doctorId  = d.id
-        JOIN users   u ON a.patientId = u.id
+        JOIN doctors d ON a.doctorId = d.id
+        JOIN users u ON a.patientId = u.id
         WHERE a.id = ? AND d.userId = ?
       `;
       params = [appointmentId, userId];
-
     } else {
-      return res.status(403).json({ ok: false, error: "Unauthorized role" });
+      return res.status(403).json({
+        ok: false,
+        error: "Unauthorized role",
+      });
     }
 
     const [rows] = await pool.query(query, params);
@@ -85,8 +81,23 @@ router.get("/check/:appointmentId", authRequired, async (req, res) => {
       });
     }
 
-    return res.json({ ok: true, appointment: appt });
+    const now = new Date();
+    const start = new Date(appt.requestedStart);
+    const end = new Date(appt.requestedEnd);
+    const joinWindowStart = new Date(start.getTime() - 1 * 60 * 1000);
 
+    if (now < joinWindowStart || now > end) {
+      return res.status(403).json({
+        ok: false,
+        error:
+          "Video call can only be joined from 1 minute before the appointment until it ends.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      appointment: appt,
+    });
   } catch (err) {
     console.error("GET /api/video/check error:", err);
     return res.status(500).json({ ok: false, error: err.message });

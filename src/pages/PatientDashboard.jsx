@@ -1,22 +1,22 @@
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { socket } from "../utils/socket";
 import { api } from "../utils/api";
 
 export default function PatientDashboard() {
+  const navigate = useNavigate();
+
   const [appointments, setAppointments] = useState([]);
   const [reports, setReports] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
 
-  // ✅ Toast state
   const [toast, setToast] = useState({ show: false, message: "", type: "info" });
   const toastTimerRef = useRef(null);
 
-  // Logged in user
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "null");
@@ -24,6 +24,59 @@ export default function PatientDashboard() {
       return null;
     }
   }, []);
+
+  const JOIN_WINDOW_MINUTES = 1;
+
+  const canJoinVideoCall = (appointment) => {
+    if (!appointment) return false;
+    if (appointment.appointmentType !== "VIDEO") return false;
+    if (appointment.status !== "CONFIRMED") return false;
+
+    const now = new Date();
+    const start = new Date(appointment.requestedStart);
+    const end = new Date(appointment.requestedEnd);
+    const joinWindowStart = new Date(
+      start.getTime() - JOIN_WINDOW_MINUTES * 60 * 1000
+    );
+
+    return now >= joinWindowStart && now <= end;
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    switch (status) {
+      case "CONFIRMED":
+        return {
+          background: "#dff7e6",
+          color: "#1b7a3c",
+          border: "1px solid rgba(27,122,60,0.25)",
+        };
+      case "REQUESTED":
+        return {
+          background: "#fff3cd",
+          color: "#8a5b00",
+          border: "1px solid rgba(138,91,0,0.25)",
+        };
+      case "COMPLETED":
+        return {
+          background: "#eef2ff",
+          color: "#3730a3",
+          border: "1px solid rgba(55,48,163,0.2)",
+        };
+      case "REJECTED":
+      case "CANCELLED":
+        return {
+          background: "#ffe3e3",
+          color: "#9c2a2a",
+          border: "1px solid rgba(156,42,42,0.2)",
+        };
+      default:
+        return {
+          background: "#eef7f7",
+          color: "#0f7f7c",
+          border: "1px solid rgba(15,127,124,0.25)",
+        };
+    }
+  };
 
   const showToast = (message, type = "info") => {
     setToast({ show: true, message, type });
@@ -46,7 +99,6 @@ export default function PatientDashboard() {
     else throw new Error(res.data.error || "Failed to load reports");
   };
 
-  // ✅ Download PDF correctly (token included + real PDF file)
   const downloadReport = async (reportId) => {
     try {
       const res = await api.get(`/api/reports/${reportId}/download`, {
@@ -74,7 +126,6 @@ export default function PatientDashboard() {
     }
   };
 
-  // Initial load
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -90,7 +141,6 @@ export default function PatientDashboard() {
     })();
   }, []);
 
-  // Socket setup
   useEffect(() => {
     if (!user?.id) return;
 
@@ -118,7 +168,14 @@ export default function PatientDashboard() {
     };
   }, [user?.id]);
 
-  // Cleanup toast timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAppointments((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -129,7 +186,6 @@ export default function PatientDashboard() {
     <div>
       <Navbar />
 
-      {/* ✅ Toast UI */}
       {toast.show && (
         <div
           style={{
@@ -173,7 +229,9 @@ export default function PatientDashboard() {
         <div style={styles.headerRow}>
           <div>
             <h1 style={{ margin: 0 }}>Patient Dashboard</h1>
-            <p style={styles.sub}>Manage your appointments, view reports, and book a doctor.</p>
+            <p style={styles.sub}>
+              Manage your appointments, view reports, and book a doctor.
+            </p>
           </div>
 
           <Link to="/find-doctor" style={styles.primaryBtn}>
@@ -204,7 +262,6 @@ export default function PatientDashboard() {
           </div>
         </section>
 
-        {/* Appointments */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
             <h2 style={{ margin: 0 }}>Appointments</h2>
@@ -222,24 +279,74 @@ export default function PatientDashboard() {
               <div key={a.id} style={styles.rowCard}>
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>{a.doctorName}</b> <span style={styles.dot}>•</span>{" "}
+                    <b>{a.doctorName}</b> <span style={styles.dot}>•</span>
                     <span style={styles.muted}>{a.specialty}</span>
                   </div>
+
                   <div style={styles.muted}>
-                    {a.requestedStart ? new Date(a.requestedStart).toLocaleString() : "No time"}
+                    {a.requestedStart
+                      ? new Date(a.requestedStart).toLocaleString()
+                      : "No time"}
                     {" • "}
                     {a.appointmentType}
                   </div>
+
+                  {a.patientNote && (
+                    <div style={styles.noteBox}>
+                      <b>Your note:</b> {a.patientNote}
+                    </div>
+                  )}
+
+                  {a.status === "REQUESTED" && (
+                    <div style={styles.infoText}>
+                      Waiting for doctor confirmation.
+                    </div>
+                  )}
+
+                  {a.appointmentType === "VIDEO" &&
+                    a.status === "CONFIRMED" &&
+                    !canJoinVideoCall(a) && (
+                      <div style={styles.infoText}>
+                        Video call will be available 1 minute before appointment time.
+                      </div>
+                    )}
+
+                  {canJoinVideoCall(a) && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/video-call/${a.id}`)}
+                      style={styles.joinBtn}
+                    >
+                      📹 Join Video Call
+                    </button>
+                  )}
+
+                  {a.status === "COMPLETED" && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/reports")}
+                      style={styles.reportBtn}
+                    >
+                      📄 View Report
+                    </button>
+                  )}
                 </div>
+
                 <div style={styles.right}>
-                  <span style={styles.badge}>{a.status}</span>
+                  <span
+                    style={{
+                      ...styles.badge,
+                      ...getStatusBadgeStyle(a.status),
+                    }}
+                  >
+                    {a.status}
+                  </span>
                 </div>
               </div>
             ))
           )}
         </section>
 
-        {/* Reports */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
             <h2 style={{ margin: 0 }}>Reports</h2>
@@ -257,7 +364,7 @@ export default function PatientDashboard() {
               <div key={r.id} style={styles.rowCard}>
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>Report #{r.id}</b> <span style={styles.dot}>•</span>{" "}
+                    <b>Report #{r.id}</b> <span style={styles.dot}>•</span>
                     <span style={styles.muted}>{r.doctorName}</span>
                   </div>
                   <div style={styles.muted}>
@@ -319,19 +426,35 @@ const styles = {
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14,
   },
-  statCard: { background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16 },
+  statCard: {
+    background: "#fff",
+    border: "1px solid #eee",
+    borderRadius: 14,
+    padding: 16,
+  },
   statLabel: { fontSize: 12, opacity: 0.75, fontWeight: 900, marginBottom: 6 },
   statValue: { fontSize: 34, fontWeight: 900, color: "#0f7f7c" },
   statValueSmall: { fontSize: 18, fontWeight: 900, color: "#0f7f7c" },
 
-  card: { marginTop: 16, background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16 },
-  cardTitle: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  card: {
+    marginTop: 16,
+    background: "#fff",
+    border: "1px solid #eee",
+    borderRadius: 14,
+    padding: 16,
+  },
+  cardTitle: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   linkBtn: { textDecoration: "none", color: "#0f7f7c", fontWeight: 900 },
 
   rowCard: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
     padding: 12,
     borderRadius: 12,
@@ -339,20 +462,56 @@ const styles = {
     marginTop: 10,
     flexWrap: "wrap",
   },
-  left: { minWidth: 260 },
+  left: { minWidth: 260, flex: 1 },
   right: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
   rowMain: { fontSize: 14 },
   muted: { opacity: 0.75, fontSize: 13 },
   dot: { margin: "0 6px", opacity: 0.5 },
 
   badge: {
-    background: "#eef7f7",
-    color: "#0f7f7c",
     fontWeight: 900,
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(15,127,124,0.25)",
     fontSize: 12,
+  },
+
+  noteBox: {
+    marginTop: 8,
+    background: "#f9f9f9",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 13,
+    color: "#555",
+  },
+
+  infoText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#666",
+    fontWeight: 600,
+  },
+
+  joinBtn: {
+    marginTop: 10,
+    padding: "10px 14px",
+    border: "none",
+    borderRadius: 10,
+    background: "#0f7f7c",
+    color: "#fff",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  reportBtn: {
+    marginTop: 10,
+    marginLeft: 10,
+    padding: "10px 14px",
+    border: "none",
+    borderRadius: 10,
+    background: "#6366f1",
+    color: "#fff",
+    fontWeight: 800,
+    cursor: "pointer",
   },
 
   outlineBtn: {
