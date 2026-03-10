@@ -1,0 +1,297 @@
+/* ─────────────────────────────────────────────
+   VideoCall.css
+───────────────────────────────────────────── */
+
+/* Base page */
+.vc-page {
+  width: 100vw;
+  height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #fff;
+}
+
+/* ── Top status bar ──────────────────────────── */
+.vc-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.vc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vc-dot.green {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+.vc-dot.yellow {
+  background: #f59e0b;
+  animation: vc-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes vc-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.vc-status-text { font-weight: 600; }
+.vc-peer-name   { opacity: 0.65; }
+
+.vc-timer {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vc-appt-id {
+  margin-left: auto;
+  opacity: 0.3;
+  font-size: 11px;
+}
+
+/* ── Video area ──────────────────────────────── */
+.vc-videos {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #111;
+}
+
+/* Remote — fills entire area */
+.vc-remote-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vc-remote {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Waiting overlay on top of remote */
+.vc-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.vc-spinner {
+  width: 52px;
+  height: 52px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #0f7f7c;
+  border-radius: 50%;
+  animation: vc-spin 1s linear infinite;
+}
+
+@keyframes vc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vc-overlay-status {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vc-overlay-peer {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.5;
+}
+
+/* Local PiP */
+.vc-local-wrap {
+  position: absolute;
+  bottom: 90px;
+  right: 20px;
+  width: 190px;
+  height: 135px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  background: #1a1a1a;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+}
+
+.vc-local {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror like a selfie */
+}
+
+.vc-hidden { visibility: hidden; }
+
+.vc-pip-off {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #1a1a1a;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.vc-pip-off span:first-child { font-size: 30px; }
+
+.vc-pip-label {
+  position: absolute;
+  bottom: 6px;
+  left: 10px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+/* ── Control bar ─────────────────────────────── */
+.vc-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.vc-ctrl-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 20px;
+  border-radius: 14px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.1s;
+  min-width: 76px;
+  user-select: none;
+}
+
+.vc-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.vc-ctrl-btn:active { transform: translateY(0); }
+
+.vc-ctrl-btn.vc-active {
+  background: rgba(239, 68, 68, 0.28);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.vc-ctrl-icon  { font-size: 22px; line-height: 1; }
+.vc-ctrl-label { font-size: 11px; opacity: 0.75; cursor: inherit; }
+
+/* End call — red pill */
+.vc-ctrl-btn.vc-end {
+  background: #dc2626;
+  padding: 10px 32px;
+  min-width: 100px;
+}
+
+.vc-ctrl-btn.vc-end:hover { background: #b91c1c; }
+
+/* ── Error screen ────────────────────────────── */
+.vc-error-page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+.vc-error-box {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 380px;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+}
+
+.vc-error-icon { font-size: 52px; }
+
+.vc-error-box h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.vc-error-box p {
+  margin: 0;
+  opacity: 0.65;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.vc-btn-back {
+  padding: 10px 28px;
+  border-radius: 10px;
+  border: none;
+  background: #0f7f7c;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.vc-btn-back:hover { background: #0d6e6b; }
+
+/* ── Responsive (mobile) ─────────────────────── */
+@media (max-width: 500px) {
+  .vc-local-wrap {
+    width: 130px;
+    height: 96px;
+    bottom: 80px;
+    right: 10px;
+  }
+
+  .vc-ctrl-btn {
+    padding: 8px 14px;
+    min-width: 60px;
+  }
+
+  .vc-ctrl-btn.vc-end { padding: 8px 22px; }
+
+  .vc-ctrl-icon  { font-size: 18px; }
+  .vc-ctrl-label { font-size: 10px; }
+}
