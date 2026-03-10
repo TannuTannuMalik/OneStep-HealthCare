@@ -9,39 +9,37 @@ import authRoutes from "./routes/auth.js";
 import doctorRoutes from "./routes/doctors.js";
 import uploadRoutes from "./routes/upload.js";
 import appointmentsRoutes from "./routes/appointments.js";
-import reportsRoutes from "./routes/reports.js"; // ✅ NEW
+import reportsRoutes from "./routes/reports.js";
+import videoRoutes from "./routes/video.js";
 
 dotenv.config();
 
 const app = express();
 
-// ✅ CORS (Express)
 app.use(
   cors({
     origin: "http://localhost:5173",
     credentials: true,
   })
 );
+
 app.use(express.json());
 
-// ✅ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/upload", uploadRoutes);
-app.use("/api/reports", reportsRoutes); // ✅ NEW
+app.use("/api/reports", reportsRoutes);
+app.use("/api/video", videoRoutes);
 
-// ✅ Root
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
 });
 
-// ✅ Health
 app.get("/health", (req, res) => {
   res.json({ message: "Backend running" });
 });
 
-// ✅ DB test (checks Railway/local DB connection)
 app.get("/db-test", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 as test");
@@ -51,7 +49,6 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// ✅ Show appointments table columns (SAFE: no delete)
 app.get("/describe-appointments", async (req, res) => {
   try {
     const [rows] = await pool.query("DESCRIBE appointments");
@@ -61,7 +58,6 @@ app.get("/describe-appointments", async (req, res) => {
   }
 });
 
-// ✅ Show consultation_reports table columns (SAFE: no delete)
 app.get("/describe-reports", async (req, res) => {
   try {
     const [rows] = await pool.query("DESCRIBE consultation_reports");
@@ -71,7 +67,6 @@ app.get("/describe-reports", async (req, res) => {
   }
 });
 
-// ✅ Init DB (users + doctors)
 app.get("/init-db", async (req, res) => {
   try {
     await pool.query(`
@@ -106,7 +101,6 @@ app.get("/init-db", async (req, res) => {
   }
 });
 
-// ✅ Init DB v2 (ensure photoUrl exists)
 app.get("/init-db-v2", async (req, res) => {
   try {
     const [cols] = await pool.query(
@@ -126,7 +120,6 @@ app.get("/init-db-v2", async (req, res) => {
   }
 });
 
-// ✅ Init DB v3 (availability + appointments workflow)
 app.get("/init-db-v3", async (req, res) => {
   try {
     await pool.query(`
@@ -155,10 +148,8 @@ app.get("/init-db-v3", async (req, res) => {
         status ENUM('REQUESTED','CONFIRMED','REJECTED','CANCELLED','COMPLETED') NOT NULL DEFAULT 'REQUESTED',
         patientNote TEXT NULL,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
         FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
         FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
-
         INDEX idx_doctor_status (doctorId, status),
         INDEX idx_patient_status (patientId, status),
         INDEX idx_requestedStart (requestedStart)
@@ -174,35 +165,27 @@ app.get("/init-db-v3", async (req, res) => {
   }
 });
 
-// ✅ Init DB v4 (consultation reports)
 app.get("/init-db-v4", async (req, res) => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS consultation_reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
-
         appointmentId INT NOT NULL,
         doctorId INT NOT NULL,
         patientId INT NOT NULL,
-
         diagnosis VARCHAR(255),
         prescription TEXT,
         doctorNotes TEXT,
         improvementSuggestions TEXT,
         followUpDate DATETIME,
-
         pdfUrl TEXT,
         pdfHash CHAR(64),
         hashTimestamp TIMESTAMP NULL,
-
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
         UNIQUE KEY unique_appointment_report (appointmentId),
-
         FOREIGN KEY (appointmentId) REFERENCES appointments(id) ON DELETE CASCADE,
         FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
         FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
-
         INDEX idx_patient_createdAt (patientId, createdAt),
         INDEX idx_doctor_createdAt (doctorId, createdAt)
       )
@@ -217,7 +200,6 @@ app.get("/init-db-v4", async (req, res) => {
   }
 });
 
-// ✅ Which DB am I connected to?
 app.get("/debug-db-info", async (req, res) => {
   try {
     const [db] = await pool.query("SELECT DATABASE() as db");
@@ -228,7 +210,6 @@ app.get("/debug-db-info", async (req, res) => {
   }
 });
 
-// ✅ Does the logged in user ID exist in users table?
 app.get("/debug-user/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -241,14 +222,8 @@ app.get("/debug-user/:id", async (req, res) => {
   }
 });
 
-/* ---------------------------
-   ✅ SOCKET.IO SETUP
-----------------------------*/
-
-// ✅ Create HTTP server from Express app
 const server = http.createServer(app);
 
-// ✅ Attach Socket.io to server
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
@@ -257,21 +232,72 @@ const io = new Server(server, {
   },
 });
 
-// ✅ Make io available in routes as req.io
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// ✅ Socket events
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
 
-  // join room for a user
   socket.on("join", ({ userId }) => {
     if (!userId) return;
     socket.join(`user:${userId}`);
     console.log(`👤 Joined room user:${userId}`);
+  });
+
+  socket.on("join-video-room", ({ appointmentId }) => {
+    if (!appointmentId) return;
+
+    const room = `video:${appointmentId}`;
+    const clients = io.sockets.adapter.rooms.get(room);
+    const count = clients ? clients.size : 0;
+
+    if (count >= 2) {
+      socket.emit("video-room-full");
+      return;
+    }
+
+    socket.join(room);
+    console.log(`📹 Socket ${socket.id} joined ${room}`);
+
+    if (count === 1) {
+      socket.to(room).emit("video-peer-joined");
+    }
+  });
+
+  socket.on("leave-video-room", ({ appointmentId }) => {
+    if (!appointmentId) return;
+    const room = `video:${appointmentId}`;
+    socket.leave(room);
+    socket.to(room).emit("video-peer-left");
+    console.log(`📹 Socket ${socket.id} left ${room}`);
+  });
+
+  socket.on("video-offer", ({ appointmentId, offer }) => {
+    if (!appointmentId || !offer) return;
+    const room = `video:${appointmentId}`;
+    socket.to(room).emit("video-offer", { offer });
+  });
+
+  socket.on("video-answer", ({ appointmentId, answer }) => {
+    if (!appointmentId || !answer) return;
+    const room = `video:${appointmentId}`;
+    socket.to(room).emit("video-answer", { answer });
+  });
+
+  socket.on("video-ice-candidate", ({ appointmentId, candidate }) => {
+    if (!appointmentId || !candidate) return;
+    const room = `video:${appointmentId}`;
+    socket.to(room).emit("video-ice-candidate", { candidate });
+  });
+
+  socket.on("disconnecting", () => {
+    for (const room of socket.rooms) {
+      if (typeof room === "string" && room.startsWith("video:")) {
+        socket.to(room).emit("video-peer-left");
+      }
+    }
   });
 
   socket.on("disconnect", () => {
@@ -279,6 +305,5 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Start server (IMPORTANT: server.listen not app.listen)
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
