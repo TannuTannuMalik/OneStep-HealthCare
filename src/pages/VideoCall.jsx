@@ -68,10 +68,6 @@ export default function VideoCall() {
 
     if (!err) return "Camera/microphone access failed.";
 
-    if (err.message?.includes("localhost or HTTPS")) {
-      return err.message;
-    }
-
     switch (err.name) {
       case "NotAllowedError":
         return "Camera/microphone permission was blocked. Please allow access in browser site settings.";
@@ -109,13 +105,23 @@ export default function VideoCall() {
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) {
+        console.log("[webrtc] sending ICE candidate");
         socket.emit("video-ice-candidate", { appointmentId, candidate });
       }
     };
 
     pc.ontrack = ({ streams }) => {
+      console.log("[webrtc] ontrack fired", streams);
+
       if (remoteVideoRef.current && streams[0]) {
         remoteVideoRef.current.srcObject = streams[0];
+
+        remoteVideoRef.current.onloadedmetadata = () => {
+          console.log("[webrtc] remote video metadata loaded");
+          setPeerConnected(true);
+          setCallStatus("Connected ✅");
+        };
+
         setPeerConnected(true);
         setCallStatus("Connected ✅");
       }
@@ -125,6 +131,10 @@ export default function VideoCall() {
       const state = pc.connectionState;
       console.log("[webrtc] connection state:", state);
 
+      if (state === "connecting") {
+        setCallStatus("Connecting…");
+      }
+
       if (state === "connected") {
         setPeerConnected(true);
         setCallStatus("Connected ✅");
@@ -132,9 +142,11 @@ export default function VideoCall() {
 
       if (state === "disconnected" || state === "failed" || state === "closed") {
         setPeerConnected(false);
+
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = null;
         }
+
         if (state !== "closed") {
           setCallStatus("Peer disconnected");
         }
@@ -209,10 +221,12 @@ export default function VideoCall() {
 
     const onPeerJoined = async () => {
       if (!mounted || !pcRef.current) return;
+      console.log("[socket] video-peer-joined");
       setCallStatus("Peer joined — connecting…");
 
       try {
         const offer = await pcRef.current.createOffer();
+        console.log("[webrtc] created offer");
         await pcRef.current.setLocalDescription(offer);
         socket.emit("video-offer", { appointmentId, offer });
       } catch (e) {
@@ -222,6 +236,7 @@ export default function VideoCall() {
 
     const onOffer = async ({ offer }) => {
       if (!mounted || !pcRef.current) return;
+      console.log("[socket] received offer");
       setCallStatus("Incoming call — connecting…");
 
       try {
@@ -231,6 +246,7 @@ export default function VideoCall() {
         await drainIceQueue();
 
         const answer = await pcRef.current.createAnswer();
+        console.log("[webrtc] created answer");
         await pcRef.current.setLocalDescription(answer);
         socket.emit("video-answer", { appointmentId, answer });
       } catch (e) {
@@ -240,6 +256,7 @@ export default function VideoCall() {
 
     const onAnswer = async ({ answer }) => {
       if (!mounted || !pcRef.current) return;
+      console.log("[socket] received answer");
 
       try {
         await pcRef.current.setRemoteDescription(
@@ -253,6 +270,7 @@ export default function VideoCall() {
 
     const onIceCandidate = async ({ candidate }) => {
       if (!mounted || !pcRef.current) return;
+      console.log("[socket] received ICE candidate");
 
       if (pcRef.current.remoteDescription) {
         try {
@@ -267,8 +285,10 @@ export default function VideoCall() {
 
     const onPeerLeft = () => {
       if (!mounted) return;
+      console.log("[socket] peer left");
       setPeerConnected(false);
       setCallStatus("The other person has left the call");
+
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = null;
       }
@@ -308,6 +328,7 @@ export default function VideoCall() {
           audio: true,
         });
 
+        console.log("[media] local stream started");
         localStreamRef.current = stream;
 
         if (localVideoRef.current) {
@@ -401,6 +422,8 @@ export default function VideoCall() {
     );
   }
 
+  const hasRemoteStream = !!remoteVideoRef.current?.srcObject;
+
   return (
     <div className="vc-page">
       <div className="vc-topbar">
@@ -421,7 +444,8 @@ export default function VideoCall() {
             playsInline
             className="vc-remote"
           />
-          {!peerConnected && (
+
+          {!peerConnected && !hasRemoteStream && (
             <div className="vc-overlay">
               <div className="vc-spinner" />
               <p className="vc-overlay-status">{callStatus}</p>
