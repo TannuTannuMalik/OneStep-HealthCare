@@ -16,13 +16,49 @@ dotenv.config();
 
 const app = express();
 
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-  })
-);
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_LAN,
+].filter(Boolean);
 
+const isAllowedDevOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+    const port = url.port;
+
+    const isLocalNetworkHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.startsWith("192.168.") ||
+      host.startsWith("172.") ||
+      host.startsWith("10.");
+
+    return isLocalNetworkHost && port === "5173";
+  } catch {
+    return false;
+  }
+};
+
+const corsOptions = {
+  origin(origin, callback) {
+    console.log("HTTP CORS origin:", origin);
+
+    if (isAllowedDevOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
@@ -226,10 +262,19 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin(origin, callback) {
+      console.log("Socket CORS origin:", origin);
+
+      if (isAllowedDevOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
+    },
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
+  transports: ["websocket", "polling"],
 });
 
 app.use((req, res, next) => {
@@ -276,20 +321,17 @@ io.on("connection", (socket) => {
 
   socket.on("video-offer", ({ appointmentId, offer }) => {
     if (!appointmentId || !offer) return;
-    const room = `video:${appointmentId}`;
-    socket.to(room).emit("video-offer", { offer });
+    socket.to(`video:${appointmentId}`).emit("video-offer", { offer });
   });
 
   socket.on("video-answer", ({ appointmentId, answer }) => {
     if (!appointmentId || !answer) return;
-    const room = `video:${appointmentId}`;
-    socket.to(room).emit("video-answer", { answer });
+    socket.to(`video:${appointmentId}`).emit("video-answer", { answer });
   });
 
   socket.on("video-ice-candidate", ({ appointmentId, candidate }) => {
     if (!appointmentId || !candidate) return;
-    const room = `video:${appointmentId}`;
-    socket.to(room).emit("video-ice-candidate", { candidate });
+    socket.to(`video:${appointmentId}`).emit("video-ice-candidate", { candidate });
   });
 
   socket.on("disconnecting", () => {
@@ -306,4 +348,6 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});
