@@ -10,7 +10,7 @@ let io = null;
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:5000",
+      origin: process.env.CLIENT_URL || "http://localhost:5000" || "https://onestep-healthcare-production.up.railway.app",
       credentials: true,
     },
     transports: ["websocket", "polling"],
