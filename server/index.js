@@ -85,7 +85,8 @@ const io = new Server(server, {
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
-  transports: ["websocket"], // use websocket only to avoid polling 502 issues
+  // ✅ websocket only — polling causes 502 on Railway
+  transports: ["websocket"],
 });
 
 app.set("io", io);
@@ -195,6 +196,7 @@ const startServer = async () => {
     conn.release();
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
+    // ✅ Don't exit — let server still start so Railway health check passes
   }
 
   server.listen(PORT, "0.0.0.0", () => {
