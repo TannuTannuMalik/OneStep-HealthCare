@@ -1,7 +1,7 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
+import cors from "cors";
 import { Server } from "socket.io";
 import { pool } from "./db.js";
 
@@ -15,31 +15,44 @@ import videoRoutes from "./routes/video.js";
 dotenv.config();
 
 const app = express();
+console.log("CORS VERSION 2 LOADED");
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://one-step-health-care.vercel.app",
-  "https://onestep-healthcare-production.up.railway.app",
-];
+/*
+-----------------------------------------------------
+CORS FIX (important for Vercel frontend)
+-----------------------------------------------------
+*/
 
-const isAllowedOrigin = (origin) => {
-  return !origin || allowedOrigins.includes(origin);
-};
+const FRONTEND_URL = "https://one-step-health-care.vercel.app";
 
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    }
-  },
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", FRONTEND_URL);
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+app.use(cors({
+  origin: FRONTEND_URL,
   credentials: true,
-};
+}));
 
-app.use(cors(corsOptions));
-//app.options("/*", cors(corsOptions));
 app.use(express.json());
+
+/*
+-----------------------------------------------------
+Basic routes
+-----------------------------------------------------
+*/
 
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
@@ -49,18 +62,17 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, message: "Backend running" });
 });
 
+/*
+-----------------------------------------------------
+HTTP Server + Socket.io
+-----------------------------------------------------
+*/
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      console.log("Socket origin:", origin);
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Socket CORS blocked for origin: ${origin}`));
-      }
-    },
+    origin: FRONTEND_URL,
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
@@ -74,12 +86,24 @@ app.use((req, res, next) => {
   next();
 });
 
+/*
+-----------------------------------------------------
+API Routes
+-----------------------------------------------------
+*/
+
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/video", videoRoutes);
+
+/*
+-----------------------------------------------------
+Database debug routes
+-----------------------------------------------------
+*/
 
 app.get("/db-test", async (req, res) => {
   try {
@@ -99,6 +123,12 @@ app.get("/debug-db-info", async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+
+/*
+-----------------------------------------------------
+Socket.IO logic
+-----------------------------------------------------
+*/
 
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
@@ -165,6 +195,12 @@ io.on("connection", (socket) => {
   });
 });
 
+/*
+-----------------------------------------------------
+Start Server
+-----------------------------------------------------
+*/
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -173,7 +209,7 @@ const startServer = async () => {
     console.log("✅ DB connected successfully");
     conn.release();
   } catch (err) {
-    console.error("❌ DB connection failed:", err.message);
+    console.error("❌ DB connection failed:", err);
   }
 
   server.listen(PORT, "0.0.0.0", () => {
