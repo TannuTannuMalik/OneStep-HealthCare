@@ -2,15 +2,12 @@ import Navbar from "../components/Navbar";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../utils/api";
+import { connectSocket } from "../utils/socket";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // role dropdown is no longer needed for real login,
-  // but we’ll keep it in UI if you want. We will ignore it.
-  const [role, setRole] = useState("patient");
-
+  const [role, setRole] = useState("patient"); // UI only
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,6 +31,9 @@ export default function Login() {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
+        // ✅ Connect socket AFTER token is saved
+        connectSocket();
+
         goDashboard(res.data.user.role);
       } else {
         setError(res.data.error || "Login failed");
@@ -56,7 +56,7 @@ export default function Login() {
           {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
 
           <form onSubmit={onSubmit} style={styles.form}>
-            {/* Optional UI only - not used in backend */}
+            {/* UI only - not sent to backend */}
             <label style={styles.label}>Role (optional)</label>
             <select
               value={role}
@@ -94,7 +94,7 @@ export default function Login() {
           </form>
 
           <p style={styles.bottom}>
-            Don’t have an account? <Link to="/register">Register</Link>
+            Don't have an account? <Link to="/register">Register</Link>
           </p>
         </div>
       </main>
