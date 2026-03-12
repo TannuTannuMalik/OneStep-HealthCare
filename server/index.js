@@ -21,6 +21,7 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
   process.env.CLIENT_URL,
   process.env.CLIENT_URL_LAN,
+  "https://one-step-health-care.vercel.app"
 ].filter(Boolean);
 
 const isAllowedDevOrigin = (origin) => {
