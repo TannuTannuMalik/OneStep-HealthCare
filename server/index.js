@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: "http://localhost:5173" || "https://onestep-healthcare-production.up.railway.app", credentials: true }));
 app.use(express.json());
 
 // ✅ Routes
