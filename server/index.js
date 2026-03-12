@@ -28,6 +28,7 @@ const isAllowedOrigin = (origin) => {
 
 const corsOptions = {
   origin: (origin, callback) => {
+    console.log("HTTP origin:", origin);
     if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
@@ -35,10 +36,12 @@ const corsOptions = {
     }
   },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
-//app.options("/*", cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -173,7 +176,7 @@ const startServer = async () => {
     console.log("✅ DB connected successfully");
     conn.release();
   } catch (err) {
-    console.error("❌ DB connection failed:", err.message);
+    console.error("❌ DB connection failed:", err);
   }
 
   server.listen(PORT, "0.0.0.0", () => {
