@@ -16,7 +16,28 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: "http://localhost:5173" || "https://onestep-healthcare-production.up.railway.app", credentials: true }));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://onestep-healthcare-production.up.railway.app",
+];
+
+const isAllowedOrigin = (origin) => {
+  return !origin || allowedOrigins.includes(origin);
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+//app.options("/*", cors(corsOptions));
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -42,7 +63,6 @@ const io = new Server(server, {
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
-  // ✅ websocket only — polling causes 502 on Railway
   transports: ["websocket"],
 });
 
@@ -153,7 +173,6 @@ const startServer = async () => {
     conn.release();
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
-    // ✅ Don't exit — let server still start so Railway health check passes
   }
 
   server.listen(PORT, "0.0.0.0", () => {
