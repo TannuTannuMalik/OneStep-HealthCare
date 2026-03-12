@@ -17,14 +17,14 @@ dotenv.config();
 const app = express();
 
 const allowedOrigins = [
-  "http://localhost:5000",
-  "http://127.0.0.1:5000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
   process.env.CLIENT_URL,
   process.env.CLIENT_URL_LAN,
   "https://one-step-health-care.vercel.app",
 ].filter(Boolean);
 
-const isAllowedDevOrigin = (origin) => {
+const isAllowedOrigin = (origin) => {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
 
@@ -46,59 +46,55 @@ const isAllowedDevOrigin = (origin) => {
   }
 };
 
-const corsOptions = {
-  origin(origin, callback) {
-    console.log("HTTP CORS origin:", origin);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      console.log("HTTP origin:", origin);
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      }
+    },
+    credentials: true,
+  })
+);
 
-    if (isAllowedDevOrigin(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
 app.use(express.json());
 
-// Basic test routes
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
 });
 
 app.get("/health", (req, res) => {
-  res.json({ message: "Backend running" });
+  res.json({ ok: true, message: "Backend running" });
 });
 
-// Create HTTP server first
 const server = http.createServer(app);
 
-// Socket.IO setup
 const io = new Server(server, {
   cors: {
-    origin(origin, callback) {
-      console.log("Socket CORS origin:", origin);
-
-      if (isAllowedDevOrigin(origin)) {
-        return callback(null, true);
+    origin: (origin, callback) => {
+      console.log("Socket origin:", origin);
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Socket CORS blocked for origin: ${origin}`));
       }
-
-      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
     },
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
-  transports: ["websocket", "polling"],
+  transports: ["websocket"], // use websocket only to avoid polling 502 issues
 });
 
-// Make io available in routes
+app.set("io", io);
+
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentsRoutes);
@@ -106,168 +102,12 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/video", videoRoutes);
 
-// DB test routes
 app.get("/db-test", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 as test");
     res.json({ ok: true, rows });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.get("/describe-appointments", async (req, res) => {
-  try {
-    const [rows] = await pool.query("DESCRIBE appointments");
-    res.json({ ok: true, rows });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.get("/describe-reports", async (req, res) => {
-  try {
-    const [rows] = await pool.query("DESCRIBE consultation_reports");
-    res.json({ ok: true, rows });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.get("/init-db", async (req, res) => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        fullName VARCHAR(100) NOT NULL,
-        email VARCHAR(150) NOT NULL UNIQUE,
-        passwordHash VARCHAR(255) NOT NULL,
-        role ENUM('PATIENT','DOCTOR','ADMIN') DEFAULT 'PATIENT',
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS doctors (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        userId INT NOT NULL,
-        specialty VARCHAR(100),
-        experienceYears INT DEFAULT 0,
-        rating DECIMAL(3,2) DEFAULT 0.00,
-        bio TEXT,
-        location VARCHAR(120),
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        photoUrl VARCHAR(500) NULL,
-        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    res.json({ ok: true, message: "Tables created/updated ✅" });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get("/init-db-v2", async (req, res) => {
-  try {
-    const [cols] = await pool.query(`
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'doctors'
-        AND COLUMN_NAME = 'photoUrl'
-    `);
-
-    if (cols.length === 0) {
-      await pool.query(`
-        ALTER TABLE doctors
-        ADD COLUMN photoUrl VARCHAR(500) NULL
-      `);
-    }
-
-    res.json({ ok: true, message: "DB updated ✅ (photoUrl added if missing)" });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get("/init-db-v3", async (req, res) => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS doctor_availability (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        doctorId INT NOT NULL,
-        dayOfWeek TINYINT NOT NULL,
-        startTime TIME NOT NULL,
-        endTime TIME NOT NULL,
-        slotMinutes INT NOT NULL DEFAULT 30,
-        isActive BOOLEAN NOT NULL DEFAULT TRUE,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
-        INDEX idx_doctor_day (doctorId, dayOfWeek)
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS appointments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        doctorId INT NOT NULL,
-        patientId INT NOT NULL,
-        appointmentType ENUM('VIDEO','IN_PERSON') NOT NULL DEFAULT 'VIDEO',
-        requestedStart DATETIME NOT NULL,
-        requestedEnd DATETIME NOT NULL,
-        status ENUM('REQUESTED','CONFIRMED','REJECTED','CANCELLED','COMPLETED') NOT NULL DEFAULT 'REQUESTED',
-        patientNote TEXT NULL,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
-        FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_doctor_status (doctorId, status),
-        INDEX idx_patient_status (patientId, status),
-        INDEX idx_requestedStart (requestedStart)
-      )
-    `);
-
-    res.json({
-      ok: true,
-      message: "DB updated ✅ (availability + appointments tables created)",
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get("/init-db-v4", async (req, res) => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS consultation_reports (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        appointmentId INT NOT NULL,
-        doctorId INT NOT NULL,
-        patientId INT NOT NULL,
-        diagnosis VARCHAR(255),
-        prescription TEXT,
-        doctorNotes TEXT,
-        improvementSuggestions TEXT,
-        followUpDate DATETIME,
-        pdfUrl TEXT,
-        pdfHash CHAR(64),
-        hashTimestamp TIMESTAMP NULL,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_appointment_report (appointmentId),
-        FOREIGN KEY (appointmentId) REFERENCES appointments(id) ON DELETE CASCADE,
-        FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
-        FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_patient_createdAt (patientId, createdAt),
-        INDEX idx_doctor_createdAt (doctorId, createdAt)
-      )
-    `);
-
-    res.json({
-      ok: true,
-      message: "DB updated ✅ (consultation_reports table created)",
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
@@ -281,19 +121,6 @@ app.get("/debug-db-info", async (req, res) => {
   }
 });
 
-app.get("/debug-user/:id", async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT id, fullName, email, role FROM users WHERE id = ?",
-      [req.params.id]
-    );
-    res.json({ ok: true, rows });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// Socket events
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
 
@@ -359,7 +186,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
@@ -367,18 +193,13 @@ const startServer = async () => {
     const conn = await pool.getConnection();
     console.log("✅ DB connected successfully");
     conn.release();
-
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`✅ Server running on port ${PORT}`);
-    });
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
-
-    // Start server anyway so Railway can respond
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`⚠️ Server running on port ${PORT} without DB connection`);
-    });
   }
+
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ Server running on port ${PORT}`);
+  });
 };
 
 startServer();
