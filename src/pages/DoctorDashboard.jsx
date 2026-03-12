@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "./DoctorDashboard.css";
 import { api } from "../utils/api";
+import { socket } from "../utils/socket";
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
 
-  // Sidebar items
   const sidebarItems = [
     { key: "dashboard", icon: "▦" },
     { key: "calendar", icon: "🗓" },
@@ -16,22 +16,6 @@ export default function DoctorDashboard() {
     { key: "logout", icon: "⎋" },
   ];
 
-  // Demo patients (keep until appointments module)
-  const patients = useMemo(
-    () => [
-      { id: 1, name: "Stacy Mitchell", type: "Weekly Visit", time: "9:15 AM", initials: "SM" },
-      { id: 2, name: "Amy Dunham", type: "Routine Checkup", time: "9:30 AM", initials: "AD" },
-      { id: 3, name: "Demi Joan", type: "Report", time: "9:50 AM", initials: "DJ" },
-      { id: 4, name: "Susan Myers", type: "Weekly Visit", time: "10:15 AM", initials: "SM" },
-    ],
-    []
-  );
-
-  const [activeMenu, setActiveMenu] = useState("dashboard");
-  const [selectedPatientId, setSelectedPatientId] = useState(patients[0].id);
-  const selectedPatient = patients.find((p) => p.id === selectedPatientId);
-
-  // Logged in user
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "null");
@@ -40,7 +24,8 @@ export default function DoctorDashboard() {
     }
   }, []);
 
-  // Doctor profile (from DB)
+  const displayName = user?.fullName ? user.fullName : "Doctor";
+
   const [profile, setProfile] = useState({
     specialty: "",
     experienceYears: 0,
@@ -53,24 +38,56 @@ export default function DoctorDashboard() {
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
 
-  // ✅ Photo states
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoMsg, setPhotoMsg] = useState("");
   const [photoErr, setPhotoErr] = useState("");
 
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppts, setLoadingAppts] = useState(false);
+  const [apptsErr, setApptsErr] = useState("");
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
+
+  const selectedAppointment =
+    appointments.find((a) => a.id === selectedAppointmentId) || null;
+
+  const [diagnosis, setDiagnosis] = useState("");
+  const [prescription, setPrescription] = useState("");
+  const [doctorNotes, setDoctorNotes] = useState("");
+  const [improvementSuggestions, setImprovementSuggestions] = useState("");
+  const [followUpDate, setFollowUpDate] = useState("");
+
+  const [creatingReport, setCreatingReport] = useState(false);
+  const [reportMsg, setReportMsg] = useState("");
+  const [reportErr, setReportErr] = useState("");
+
   const defaultImg =
     "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=300&q=60";
 
-  // Ensure only doctor can stay here
+  const JOIN_WINDOW_MINUTES = 1;
+
+  const canJoinVideoCall = (appointment) => {
+    if (!appointment) return false;
+    if (appointment.appointmentType !== "VIDEO") return false;
+    if (appointment.status !== "CONFIRMED") return false;
+
+    const now = new Date();
+    const start = new Date(appointment.requestedStart);
+    const end = new Date(appointment.requestedEnd);
+    const joinWindowStart = new Date(
+      start.getTime() - JOIN_WINDOW_MINUTES * 60 * 1000
+    );
+
+    return now >= joinWindowStart && now <= end;
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || !user) navigate("/login");
     if (user?.role !== "DOCTOR") navigate("/login");
   }, [navigate, user]);
 
-  // Load doctor profile from backend
   useEffect(() => {
     const load = async () => {
       setProfileErr("");
@@ -78,6 +95,7 @@ export default function DoctorDashboard() {
       setPhotoErr("");
       setPhotoMsg("");
       setLoadingProfile(true);
+
       try {
         const res = await api.get("/api/doctors/me");
         if (res.data.ok && res.data.doctor) {
@@ -100,6 +118,65 @@ export default function DoctorDashboard() {
     load();
   }, []);
 
+  const loadAppointments = async () => {
+    setApptsErr("");
+    setLoadingAppts(true);
+    try {
+      const res = await api.get("/api/appointments/doctor/me");
+      if (res.data.ok) {
+        const list = res.data.data || [];
+        setAppointments(list);
+
+        if (list.length > 0) {
+          setSelectedAppointmentId((prev) => {
+            const stillExists = list.some((item) => item.id === prev);
+            return stillExists ? prev : list[0].id;
+          });
+        } else {
+          setSelectedAppointmentId(null);
+        }
+      } else {
+        setApptsErr(res.data.error || "Failed to load appointments");
+      }
+    } catch (e) {
+      setApptsErr(e.response?.data?.error || e.message);
+    } finally {
+      setLoadingAppts(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    socket.emit("join", { userId: user.id });
+
+    const onStatus = () => {
+      loadAppointments();
+    };
+
+    const onReport = () => {};
+
+    socket.on("appointment_status", onStatus);
+    socket.on("report_ready", onReport);
+
+    return () => {
+      socket.off("appointment_status", onStatus);
+      socket.off("report_ready", onReport);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAppointments((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -108,7 +185,6 @@ export default function DoctorDashboard() {
 
   const onSidebarClick = (key) => {
     if (key === "logout") return handleLogout();
-    setActiveMenu(key);
   };
 
   const onProfileChange = (e) => {
@@ -127,8 +203,11 @@ export default function DoctorDashboard() {
 
     try {
       const res = await api.post("/api/doctors/me", profile);
-      if (res.data.ok) setProfileMsg("Profile saved ✅ Patients can find you now.");
-      else setProfileErr(res.data.error || "Save failed");
+      if (res.data.ok) {
+        setProfileMsg("Profile saved ✅ Patients can find you now.");
+      } else {
+        setProfileErr(res.data.error || "Save failed");
+      }
     } catch (e2) {
       setProfileErr(e2.response?.data?.error || e2.message);
     } finally {
@@ -136,7 +215,6 @@ export default function DoctorDashboard() {
     }
   };
 
-  // ✅ Upload / change doctor photo
   const uploadPhoto = async () => {
     setPhotoErr("");
     setPhotoMsg("");
@@ -149,7 +227,7 @@ export default function DoctorDashboard() {
     try {
       setPhotoUploading(true);
       const formData = new FormData();
-      formData.append("photo", photoFile); // ✅ must match upload.single("photo")
+      formData.append("photo", photoFile);
 
       const res = await api.post("/api/upload/doctor-photo", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -169,27 +247,89 @@ export default function DoctorDashboard() {
     }
   };
 
-  const displayName = user?.fullName ? user.fullName : "Doctor";
+  const updateAppointmentStatus = async (appointmentId, status) => {
+    try {
+      await api.patch(`/api/appointments/${appointmentId}/status`, { status });
+      await loadAppointments();
+      alert(`Appointment ${status} ✅`);
+    } catch (e) {
+      alert(e.response?.data?.error || e.message);
+    }
+  };
+
+  const markCompleted = async (appointmentId) => {
+    await updateAppointmentStatus(appointmentId, "COMPLETED");
+  };
+
+  const confirmAppointment = async (appointmentId) => {
+    await updateAppointmentStatus(appointmentId, "CONFIRMED");
+  };
+
+  const rejectAppointment = async (appointmentId) => {
+    await updateAppointmentStatus(appointmentId, "REJECTED");
+  };
+
+  const createReport = async () => {
+    setReportMsg("");
+    setReportErr("");
+
+    if (!selectedAppointment?.id) {
+      setReportErr("Select an appointment first.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "COMPLETED") {
+      setReportErr("Appointment must be COMPLETED before creating a report.");
+      return;
+    }
+
+    try {
+      setCreatingReport(true);
+
+      const res = await api.post("/api/reports", {
+        appointmentId: selectedAppointment.id,
+        diagnosis,
+        prescription,
+        doctorNotes,
+        improvementSuggestions,
+        followUpDate: followUpDate || null,
+      });
+
+      if (res.data.ok) {
+        setReportMsg("Report created ✅ PDF generated + saved.");
+        setDiagnosis("");
+        setPrescription("");
+        setDoctorNotes("");
+        setImprovementSuggestions("");
+        setFollowUpDate("");
+      } else {
+        setReportErr(res.data.error || "Failed to create report");
+      }
+    } catch (e) {
+      setReportErr(e.response?.data?.error || e.message);
+    } finally {
+      setCreatingReport(false);
+    }
+  };
+
+  const totalAppts = appointments.length;
 
   return (
     <div className="doc-wrap">
       <div className="doc-shell">
         <div className="doc-app">
-          {/* Sidebar */}
           <aside className="doc-sidebar">
             {sidebarItems.slice(0, 5).map((it) => (
               <button
                 key={it.key}
-                className={`doc-sb-btn ${activeMenu === it.key ? "active" : ""}`}
+                className="doc-sb-btn"
                 onClick={() => onSidebarClick(it.key)}
                 title={it.key}
               >
                 {it.icon}
               </button>
             ))}
-
             <div className="doc-sb-spacer" />
-
             {sidebarItems.slice(5).map((it) => (
               <button
                 key={it.key}
@@ -202,7 +342,6 @@ export default function DoctorDashboard() {
             ))}
           </aside>
 
-          {/* Main */}
           <main className="doc-main">
             <div className="doc-topbar">
               <div className="doc-search">
@@ -217,28 +356,23 @@ export default function DoctorDashboard() {
 
             <section className="doc-hero">
               <div>
-                <h3>Visits for Today</h3>
-                <p className="doc-hero-big">104</p>
-
-                <div className="doc-mini-cards">
-                  <div className="doc-mini">
-                    <div className="label">New Patients</div>
-                    <div className="value">
-                      40 <span className="trend trend-up">51% ↗</span>
-                    </div>
-                  </div>
-
-                  <div className="doc-mini">
-                    <div className="label">Old Patients</div>
-                    <div className="value">
-                      64 <span className="trend trend-down">20% ↘</span>
-                    </div>
-                  </div>
+                <h3>Appointments</h3>
+                <p className="doc-hero-big">{totalAppts}</p>
+                <div style={{ opacity: 0.7 }}>
+                  {loadingAppts
+                    ? "Loading appointments..."
+                    : apptsErr
+                    ? apptsErr
+                    : "From database ✅"}
                 </div>
               </div>
 
               <div className="doc-hero-photo">
-                <img src={defaultImg} alt="Doctor" />
+                <img
+                  src={photoUrl || defaultImg}
+                  alt="Doctor"
+                  onError={(e) => (e.currentTarget.src = defaultImg)}
+                />
               </div>
             </section>
 
@@ -246,23 +380,58 @@ export default function DoctorDashboard() {
               <div className="doc-card">
                 <div className="doc-card-title">
                   <h4>Patient List</h4>
-                  <div className="doc-pill">Today ▾</div>
+                  <div className="doc-pill">Latest ▾</div>
                 </div>
 
-                {patients.map((p) => (
-                  <div
-                    key={p.id}
-                    className={`patient-item ${p.id === selectedPatientId ? "active" : ""}`}
-                    onClick={() => setSelectedPatientId(p.id)}
-                  >
-                    <div className="avatar">{p.initials}</div>
-                    <div className="pmeta">
-                      <div className="pname">{p.name}</div>
-                      <div className="psub">{p.type}</div>
-                    </div>
-                    <div className="ptime">{p.time}</div>
+                {appointments.length === 0 ? (
+                  <div style={{ opacity: 0.7, padding: 10 }}>
+                    No appointments yet.
                   </div>
-                ))}
+                ) : (
+                  appointments.map((a) => {
+                    const initials =
+                      (a.patientName || "P")
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((x) => x[0]?.toUpperCase())
+                        .join("") || "P";
+
+                    return (
+                      <div
+                        key={a.id}
+                        className={`patient-item ${
+                          a.id === selectedAppointmentId ? "active" : ""
+                        }`}
+                        onClick={() => setSelectedAppointmentId(a.id)}
+                      >
+                        <div className="avatar">{initials}</div>
+
+                        <div className="pmeta">
+                          <div className="pname">{a.patientName}</div>
+                          <div className="psub">
+                            {a.appointmentType} • {a.status}
+                          </div>
+                        </div>
+
+                        <div className="ptime">
+                          {new Date(a.requestedStart).toLocaleString()}
+                        </div>
+
+                        {canJoinVideoCall(a) && (
+                          <button
+                            className="join-call-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/video-call/${a.id}`);
+                            }}
+                          >
+                            📹 Join Call
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               <div className="doc-card">
@@ -271,34 +440,266 @@ export default function DoctorDashboard() {
                   <div className="doc-pill">Details</div>
                 </div>
 
-                <div className="consult-top">
-                  <div className="consult-avatar">{selectedPatient?.initials}</div>
-                  <div>
-                    <div style={{ fontWeight: 900 }}>{selectedPatient?.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      Patient details will be dynamic in Week 5 (Appointments module).
-                    </div>
+                {!selectedAppointment ? (
+                  <div style={{ opacity: 0.7, padding: 10 }}>
+                    Select an appointment to view details.
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="consult-top">
+                      <div className="consult-avatar">
+                        {(selectedAppointment.patientName || "P")[0]?.toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 900 }}>
+                          {selectedAppointment.patientName}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                          {new Date(
+                            selectedAppointment.requestedStart
+                          ).toLocaleString()}{" "}
+                          • {selectedAppointment.appointmentType}
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="chips">
-                  <span className="chip">🤒 Fever</span>
-                  <span className="chip">😷 Cough</span>
-                  <span className="chip">🔥 Heart Burn</span>
-                </div>
+                    <div className="note-box">
+                      <b>Patient note:</b>{" "}
+                      {selectedAppointment.patientNote
+                        ? selectedAppointment.patientNote
+                        : "—"}
+                    </div>
 
-                <div className="note-box">
-                  <b>Note:</b> This section is demo until appointments + symptom summary are connected.
-                </div>
+                    <div className="note-box">
+                      <b>Status:</b> {selectedAppointment.status}
+                    </div>
+
+                    {selectedAppointment.status === "REQUESTED" && (
+                      <div
+                        className="note-box"
+                        style={{
+                          marginTop: 10,
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <b>Appointment Request Action</b>
+
+                        <button
+                          type="button"
+                          onClick={() => confirmAppointment(selectedAppointment.id)}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "none",
+                            background: "#0f7f7c",
+                            color: "#fff",
+                            fontWeight: 900,
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✅ Confirm Appointment
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => rejectAppointment(selectedAppointment.id)}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "none",
+                            background: "#b42318",
+                            color: "#fff",
+                            fontWeight: 900,
+                            cursor: "pointer",
+                          }}
+                        >
+                          ❌ Reject Appointment
+                        </button>
+                      </div>
+                    )}
+
+                    {selectedAppointment.appointmentType === "VIDEO" &&
+                      selectedAppointment.status === "CONFIRMED" &&
+                      !canJoinVideoCall(selectedAppointment) && (
+                        <div className="note-box" style={{ marginTop: 10 }}>
+                          Video call will be available {JOIN_WINDOW_MINUTES} minute
+                          {JOIN_WINDOW_MINUTES > 1 ? "s" : ""} before the
+                          appointment time.
+                        </div>
+                      )}
+
+                    {canJoinVideoCall(selectedAppointment) && (
+                      <div className="note-box" style={{ marginTop: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/video-call/${selectedAppointment.id}`)
+                          }
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            background: "#0f7f7c",
+                            color: "#fff",
+                            fontWeight: 900,
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          📹 Start / Join Video Call
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="note-box" style={{ marginTop: 10 }}>
+                      <b>Create Consultation Report</b>
+
+                      <div style={{ marginTop: 10 }}>
+                        <Link
+                          to={`/doctor/report/${selectedAppointment.id}`}
+                          style={{
+                            display: "inline-block",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            background: "#222",
+                            color: "white",
+                            fontWeight: 900,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Open Full Report Page
+                        </Link>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                        <button
+                          type="button"
+                          onClick={() => markCompleted(selectedAppointment.id)}
+                          disabled={selectedAppointment.status !== "CONFIRMED"}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                            background:
+                              selectedAppointment.status !== "CONFIRMED"
+                                ? "#f5f5f5"
+                                : "#fff",
+                            fontWeight: 800,
+                            cursor:
+                              selectedAppointment.status !== "CONFIRMED"
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          {selectedAppointment.status === "COMPLETED"
+                            ? "Already COMPLETED ✅"
+                            : "Mark Appointment as COMPLETED"}
+                        </button>
+
+                        <input
+                          placeholder="Diagnosis"
+                          value={diagnosis}
+                          onChange={(e) => setDiagnosis(e.target.value)}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+
+                        <input
+                          placeholder="Prescription"
+                          value={prescription}
+                          onChange={(e) => setPrescription(e.target.value)}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Doctor Notes"
+                          value={doctorNotes}
+                          onChange={(e) => setDoctorNotes(e.target.value)}
+                          rows={3}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Improvement Suggestions (important)"
+                          value={improvementSuggestions}
+                          onChange={(e) =>
+                            setImprovementSuggestions(e.target.value)
+                          }
+                          rows={3}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+
+                        <input
+                          type="date"
+                          value={followUpDate}
+                          onChange={(e) => setFollowUpDate(e.target.value)}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={createReport}
+                          disabled={creatingReport}
+                          style={{
+                            padding: 10,
+                            borderRadius: 10,
+                            border: "none",
+                            background: "#0f7f7c",
+                            color: "#fff",
+                            fontWeight: 900,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {creatingReport
+                            ? "Creating..."
+                            : "Create Report + Generate PDF"}
+                        </button>
+
+                        {reportMsg && (
+                          <div style={{ color: "green", fontWeight: 800 }}>
+                            {reportMsg}
+                          </div>
+                        )}
+                        {reportErr && (
+                          <div style={{ color: "crimson", fontWeight: 800 }}>
+                            {reportErr}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </section>
           </main>
 
-          {/* Right panel */}
           <aside className="doc-right">
             <div className="right-top">
-              <button className="icon-btn" title="Messages">💬</button>
-              <button className="icon-btn" title="Notifications">🔔</button>
+              <button className="icon-btn" title="Messages">
+                💬
+              </button>
+              <button className="icon-btn" title="Notifications">
+                🔔
+              </button>
 
               <div className="profile">
                 <img
@@ -306,28 +707,15 @@ export default function DoctorDashboard() {
                   alt="Profile"
                   onError={(e) => (e.currentTarget.src = defaultImg)}
                 />
-                <div style={{ fontWeight: 800, fontSize: 13 }}>Dr. {displayName}</div>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>
+                  Dr. {displayName}
+                </div>
               </div>
             </div>
 
-            {/* ✅ Upload / Change Photo */}
             <div className="news" style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>PROFILE PHOTO</div>
-
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10 }}>
-                <div style={{ width: 56, height: 56, borderRadius: 999, overflow: "hidden", border: "1px solid #ddd" }}>
-                  <img
-                    src={photoUrl || defaultImg}
-                    alt="Doctor"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    onError={(e) => (e.currentTarget.src = defaultImg)}
-                  />
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 900 }}>Dr. {displayName}</div>
-                  <div style={{ fontSize: 12, opacity: 0.75 }}>Upload / Change your photo</div>
-                </div>
+              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>
+                PROFILE PHOTO
               </div>
 
               <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
@@ -354,25 +742,39 @@ export default function DoctorDashboard() {
                   {photoUploading ? "Uploading..." : "Upload Photo"}
                 </button>
 
-                {photoMsg && <div style={{ color: "green", fontWeight: 700 }}>{photoMsg}</div>}
-                {photoErr && <div style={{ color: "red", fontWeight: 700 }}>{photoErr}</div>}
+                {photoMsg && (
+                  <div style={{ color: "green", fontWeight: 700 }}>
+                    {photoMsg}
+                  </div>
+                )}
+                {photoErr && (
+                  <div style={{ color: "red", fontWeight: 700 }}>{photoErr}</div>
+                )}
               </div>
             </div>
 
-            {/* ✅ Doctor Profile (REAL DB CONNECTED) */}
             <div className="news" style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>DOCTOR PROFILE</div>
+              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>
+                DOCTOR PROFILE
+              </div>
 
               {loadingProfile ? (
                 <p style={{ marginTop: 10 }}>Loading profile...</p>
               ) : (
-                <form onSubmit={saveProfile} style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                <form
+                  onSubmit={saveProfile}
+                  style={{ display: "grid", gap: 10, marginTop: 10 }}
+                >
                   <input
                     name="specialty"
                     placeholder="Specialty (e.g., General Physician)"
                     value={profile.specialty}
                     onChange={onProfileChange}
-                    style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                    style={{
+                      padding: 10,
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                    }}
                   />
 
                   <input
@@ -382,7 +784,11 @@ export default function DoctorDashboard() {
                     placeholder="Experience (years)"
                     value={profile.experienceYears}
                     onChange={onProfileChange}
-                    style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                    style={{
+                      padding: 10,
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                    }}
                   />
 
                   <input
@@ -390,7 +796,11 @@ export default function DoctorDashboard() {
                     placeholder="Location (e.g., Auckland)"
                     value={profile.location}
                     onChange={onProfileChange}
-                    style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                    style={{
+                      padding: 10,
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                    }}
                   />
 
                   <textarea
@@ -399,7 +809,11 @@ export default function DoctorDashboard() {
                     value={profile.bio}
                     onChange={onProfileChange}
                     rows={3}
-                    style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                    style={{
+                      padding: 10,
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                    }}
                   />
 
                   <button
@@ -418,52 +832,18 @@ export default function DoctorDashboard() {
                     {savingProfile ? "Saving..." : "Save Profile"}
                   </button>
 
-                  {profileMsg && <div style={{ color: "green", fontWeight: 700 }}>{profileMsg}</div>}
-                  {profileErr && <div style={{ color: "red", fontWeight: 700 }}>{profileErr}</div>}
+                  {profileMsg && (
+                    <div style={{ color: "green", fontWeight: 700 }}>
+                      {profileMsg}
+                    </div>
+                  )}
+                  {profileErr && (
+                    <div style={{ color: "red", fontWeight: 700 }}>
+                      {profileErr}
+                    </div>
+                  )}
                 </form>
               )}
-            </div>
-
-            {/* Calendar + Upcoming demo */}
-            <div className="calendar">
-              <div className="cal-head">
-                <b>Calendar</b>
-                <span style={{ opacity: 0.7 }}>September 2026</span>
-              </div>
-
-              <div className="cal-grid" style={{ opacity: 0.7, marginTop: 10 }}>
-                {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
-                  <div key={d} style={{ fontWeight: 700 }}>{d}</div>
-                ))}
-              </div>
-
-              <div className="cal-grid">
-                {[...Array(3)].map((_, i) => (
-                  <div key={`e${i}`} style={{ opacity: 0 }} className="cal-day">0</div>
-                ))}
-                {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
-                  <div key={n} className={`cal-day ${[8, 14, 21].includes(n) ? "dot" : ""}`}>
-                    {n}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="upcoming">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <b>Upcoming</b>
-                <span style={{ fontSize: 12, color: "#0f7f7c", fontWeight: 800, cursor: "pointer" }}>
-                  View All
-                </span>
-              </div>
-
-              <div className="up-row">
-                <div className="up-badge">M</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Monthly doctor's meet</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>8 April, 2026 • 04:00 PM</div>
-                </div>
-              </div>
             </div>
           </aside>
         </div>

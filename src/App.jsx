@@ -13,10 +13,13 @@ import Contact from "./pages/Contact";
 import FindDoctor from "./pages/FindDoctor";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import BookAppointment from "./pages/BookAppointment";
 import Appointments from "./pages/Appointments";
 import Reports from "./pages/Reports";
 import PatientDashboard from "./pages/PatientDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import CreateReport from "./pages/CreateReport";
+import VideoCall from "./pages/VideoCall";
 
 export default function App() {
   return (
@@ -24,15 +27,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
-
         <Route path="/services" element={<Services />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/find-doctor" element={<FindDoctor />} />
-
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* ✅ Protected Dashboards */}
         <Route
           path="/patient"
           element={
@@ -43,10 +43,37 @@ export default function App() {
         />
 
         <Route
+          path="/book/:doctorId"
+          element={
+            <ProtectedRoute allowedRoles={["PATIENT"]}>
+              <BookAppointment />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/doctor/report/:appointmentId"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <CreateReport />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/doctor"
           element={
             <ProtectedRoute allowedRoles={["DOCTOR"]}>
               <DoctorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/video-call/:appointmentId"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR", "PATIENT"]}>
+              <VideoCall />
             </ProtectedRoute>
           }
         />
@@ -65,7 +92,10 @@ export default function App() {
         <Route path="/appointments" element={<Appointments />} />
         <Route path="/reports" element={<Reports />} />
 
-        <Route path="*" element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>} />
+        <Route
+          path="*"
+          element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>}
+        />
       </Routes>
     </BrowserRouter>
   );

@@ -19,3 +19,41 @@ CREATE TABLE IF NOT EXISTS doctors (
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS appointments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  patientId INT NOT NULL,
+  doctorId INT NOT NULL,
+  appointmentDateTime DATETIME NOT NULL,
+  appointmentType ENUM('VIDEO','IN_PERSON') NOT NULL,
+  status ENUM('PENDING','CONFIRMED','COMPLETED','CANCELLED') DEFAULT 'PENDING',
+  reason TEXT,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS consultation_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+
+  appointmentId INT NOT NULL,
+  doctorId INT NOT NULL,
+  patientId INT NOT NULL,
+
+  diagnosis VARCHAR(255),
+  prescription TEXT,
+  doctorNotes TEXT,
+  improvementSuggestions TEXT,
+  followUpDate DATETIME,
+
+  pdfUrl TEXT,
+  pdfHash CHAR(64),
+  hashTimestamp TIMESTAMP NULL,
+
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE KEY unique_appointment_report (appointmentId),
+
+  FOREIGN KEY (appointmentId) REFERENCES appointments(id) ON DELETE CASCADE,
+  FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
+  FOREIGN KEY (patientId) REFERENCES users(id) ON DELETE CASCADE
+);

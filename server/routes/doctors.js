@@ -1,11 +1,12 @@
 import express from "express";
 import { pool } from "../db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { authRequired, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
 /**
- * GET /api/doctors
+ * ✅ GET /api/doctors
+ * Public: list marketplace doctors (optionally search with ?q=)
  */
 router.get("/", async (req, res) => {
   try {
@@ -36,73 +37,159 @@ router.get("/", async (req, res) => {
 
     const [rows] = await pool.query(sql, params);
 
+    // MVP demo field
     const doctors = rows.map((d) => ({
       ...d,
-      availableToday: Math.random() > 0.3, // MVP demo
+      availableToday: Math.random() > 0.3,
     }));
 
-    res.json({ ok: true, doctors });
+    return res.json({ ok: true, doctors });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 /**
- * GET /api/doctors/me
+ * ✅ GET /api/doctors/me
+ * Doctor only: get my doctor profile row
  */
-router.get("/me", requireAuth, requireRole("DOCTOR"), async (req, res) => {
+router.get("/me", authRequired, requireRole("DOCTOR"), async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query("SELECT * FROM doctors WHERE userId = ?", [userId]);
-    res.json({ ok: true, doctor: rows[0] || null });
+
+    const [rows] = await pool.query(
+      "SELECT * FROM doctors WHERE userId = ? LIMIT 1",
+      [userId]
+    );
+
+    return res.json({ ok: true, doctor: rows[0] || null });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 /**
- * POST /api/doctors/me
+ * ✅ POST /api/doctors/me
+ * Doctor only: create profile if missing, otherwise update
  */
-router.post("/me", requireAuth, requireRole("DOCTOR"), async (req, res) => {
+router.post("/me", authRequired, requireRole("DOCTOR"), async (req, res) => {
   try {
     const userId = req.user.id;
     const { specialty, experienceYears, bio, location, photoUrl } = req.body;
 
-    const [existing] = await pool.query("SELECT id FROM doctors WHERE userId = ?", [userId]);
+    // Check if profile exists
+    const [docRows] = await pool.query(
+      "SELECT id FROM doctors WHERE userId = ? LIMIT 1",
+      [userId]
+    );
 
-    if (existing.length === 0) {
-      await pool.query(
+    const exp = Number.isFinite(Number(experienceYears))
+      ? Number(experienceYears)
+      : 0;
+
+    if (docRows.length === 0) {
+      // Create
+      const [created] = await pool.query(
+        `
+        INSERT INTO doctors (userId, specialty, experienceYears, bio, location, photoUrl)
+        VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [
+          userId,
+          specialty || null,
+          exp,
+          bio || null,
+          location || null,
+          photoUrl || null,
+        ]
+      );
+
+      return res.json({ ok: true, doctorId: created.insertId, created: true });
+    }
+
+    // Update
+    const doctorId = docRows[0].id;
+
+    await pool.query(
+      `
+      UPDATE doctors
+      SET specialty = ?, experienceYears = ?, bio = ?, location = ?, photoUrl = ?
+      WHERE id = ?
+      `,
+      [specialty || null, exp, bio || null, location || null, photoUrl || null, doctorId]
+    );
+
+    return res.json({ ok: true, doctorId, updated: true });
+  } catch (err) {
+    console.error("POST /api/doctors/me error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+// ✅ GET /api/doctors/me  (doctor profile)
+router.get("/me", authRequired, requireRole("DOCTOR"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query("SELECT * FROM doctors WHERE userId = ? LIMIT 1", [userId]);
+    res.json({ ok: true, doctor: rows[0] || null });
+  } catch (err) {
+    console.error("GET /api/doctors/me error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ✅ POST /api/doctors/me  (create/update doctor profile)
+router.post("/me", authRequired, requireRole("DOCTOR"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // ✅ IMPORTANT: if body is missing, avoid destructuring crash
+    const { specialty, experienceYears, bio, location, photoUrl } = req.body || {};
+
+    // 1) check if doctor profile exists
+    const [docRows] = await pool.query(
+      "SELECT id FROM doctors WHERE userId = ? LIMIT 1",
+      [userId]
+    );
+
+    if (docRows.length === 0) {
+      // create
+      const [created] = await pool.query(
         `INSERT INTO doctors (userId, specialty, experienceYears, bio, location, photoUrl)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
           userId,
           specialty || null,
-          Number(experienceYears || 0),
+          Number.isFinite(Number(experienceYears)) ? Number(experienceYears) : 0,
           bio || null,
           location || null,
           photoUrl || null,
         ]
       );
-    } else {
-      await pool.query(
-        `UPDATE doctors 
-         SET specialty=?, experienceYears=?, bio=?, location=?, photoUrl=? 
-         WHERE userId=?`,
-        [
-          specialty || null,
-          Number(experienceYears || 0),
-          bio || null,
-          location || null,
-          photoUrl || null,
-          userId,
-        ]
-      );
+
+      return res.json({ ok: true, doctorId: created.insertId, created: true });
     }
 
-    res.json({ ok: true });
+    // update
+    const doctorId = docRows[0].id;
+
+    await pool.query(
+      `UPDATE doctors
+       SET specialty = ?, experienceYears = ?, bio = ?, location = ?, photoUrl = ?
+       WHERE id = ?`,
+      [
+        specialty || null,
+        Number.isFinite(Number(experienceYears)) ? Number(experienceYears) : 0,
+        bio || null,
+        location || null,
+        photoUrl || null,
+        doctorId,
+      ]
+    );
+
+    return res.json({ ok: true, doctorId, updated: true });
   } catch (err) {
+    console.error("POST /api/doctors/me error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-
 export default router;
