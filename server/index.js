@@ -17,10 +17,11 @@ dotenv.config();
 const app = express();
 
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
+  "http://localhost:5000",
+  "http://127.0.0.1:5000",
   process.env.CLIENT_URL,
   process.env.CLIENT_URL_LAN,
+  "https://one-step-health-care.vercel.app",
 ].filter(Boolean);
 
 const isAllowedDevOrigin = (origin) => {
@@ -61,13 +62,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
-app.use("/api/doctors", doctorRoutes);
-app.use("/api/appointments", appointmentsRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/reports", reportsRoutes);
-app.use("/api/video", videoRoutes);
-
+// Basic test routes
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
 });
@@ -76,12 +71,48 @@ app.get("/health", (req, res) => {
   res.json({ message: "Backend running" });
 });
 
+// Create HTTP server first
+const server = http.createServer(app);
+
+// Socket.IO setup
+const io = new Server(server, {
+  cors: {
+    origin(origin, callback) {
+      console.log("Socket CORS origin:", origin);
+
+      if (isAllowedDevOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
+    },
+    methods: ["GET", "POST", "PATCH"],
+    credentials: true,
+  },
+  transports: ["websocket", "polling"],
+});
+
+// Make io available in routes
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/doctors", doctorRoutes);
+app.use("/api/appointments", appointmentsRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/video", videoRoutes);
+
+// DB test routes
 app.get("/db-test", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 as test");
     res.json({ ok: true, rows });
   } catch (error) {
-    res.json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 
@@ -133,21 +164,25 @@ app.get("/init-db", async (req, res) => {
 
     res.json({ ok: true, message: "Tables created/updated ✅" });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 app.get("/init-db-v2", async (req, res) => {
   try {
-    const [cols] = await pool.query(
-      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-       WHERE TABLE_SCHEMA = DATABASE() 
-         AND TABLE_NAME = 'doctors' 
-         AND COLUMN_NAME = 'photoUrl'`
-    );
+    const [cols] = await pool.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'doctors'
+        AND COLUMN_NAME = 'photoUrl'
+    `);
 
     if (cols.length === 0) {
-      await pool.query(`ALTER TABLE doctors ADD COLUMN photoUrl VARCHAR(500) NULL`);
+      await pool.query(`
+        ALTER TABLE doctors
+        ADD COLUMN photoUrl VARCHAR(500) NULL
+      `);
     }
 
     res.json({ ok: true, message: "DB updated ✅ (photoUrl added if missing)" });
@@ -258,30 +293,7 @@ app.get("/debug-user/:id", async (req, res) => {
   }
 });
 
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: {
-    origin(origin, callback) {
-      console.log("Socket CORS origin:", origin);
-
-      if (isAllowedDevOrigin(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
-    },
-    methods: ["GET", "POST", "PATCH"],
-    credentials: true,
-  },
-  transports: ["websocket", "polling"],
-});
-
-app.use((req, res, next) => {
-  req.io = io;
-  next();
-});
-
+// Socket events
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
 
@@ -347,7 +359,26 @@ io.on("connection", (socket) => {
   });
 });
 
+// Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+const startServer = async () => {
+  try {
+    const conn = await pool.getConnection();
+    console.log("✅ DB connected successfully");
+    conn.release();
+
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`✅ Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("❌ DB connection failed:", err.message);
+
+    // Start server anyway so Railway can respond
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`⚠️ Server running on port ${PORT} without DB connection`);
+    });
+  }
+};
+
+startServer();
