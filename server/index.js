@@ -15,6 +15,7 @@ import videoRoutes from "./routes/video.js";
 dotenv.config();
 
 const app = express();
+console.log("CORS VERSION 2 LOADED");
 
 /*
 -----------------------------------------------------
