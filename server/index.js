@@ -18,6 +18,7 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "https://one-step-health-care.vercel.app",
   "https://onestep-healthcare-production.up.railway.app",
 ];
 
