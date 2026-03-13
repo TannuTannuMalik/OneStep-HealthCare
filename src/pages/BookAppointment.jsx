@@ -25,7 +25,6 @@ export default function BookAppointment() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // Only patients can book
   useEffect(() => {
     if (!user) navigate("/login");
     if (user?.role !== "PATIENT") navigate("/login");
@@ -44,12 +43,11 @@ export default function BookAppointment() {
     try {
       setLoading(true);
 
-      // Convert datetime-local format -> MySQL DATETIME
       const startSql = requestedStart.replace("T", " ") + ":00";
       const endSql = requestedEnd.replace("T", " ") + ":00";
 
-      const res = await api.post("/api/appointments", {
-        doctorId: Number(doctorId), // IMPORTANT: doctors.id
+      const res = await api.post("/appointments", {
+        doctorId: Number(doctorId),
         requestedStart: startSql,
         requestedEnd: endSql,
         appointmentType,

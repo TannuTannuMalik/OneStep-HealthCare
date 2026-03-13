@@ -7,7 +7,7 @@ import { connectSocket } from "../utils/socket";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("patient"); // UI only
+  const [role, setRole] = useState("patient");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,21 +25,22 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post("/auth/login", {
+        email,
+        password,
+      });
 
       if (res.data.ok) {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
-        // ✅ Connect socket AFTER token is saved
         connectSocket();
-
         goDashboard(res.data.user.role);
       } else {
         setError(res.data.error || "Login failed");
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message);
+      setError(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -53,10 +54,9 @@ export default function Login() {
           <h2>Login</h2>
           <p style={styles.sub}>Login using your registered email and password</p>
 
-          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+          {error && <p style={styles.error}>{error}</p>}
 
           <form onSubmit={onSubmit} style={styles.form}>
-            {/* UI only - not sent to backend */}
             <label style={styles.label}>Role (optional)</label>
             <select
               value={role}
@@ -94,7 +94,7 @@ export default function Login() {
           </form>
 
           <p style={styles.bottom}>
-            Don't have an account? <Link to="/register">Register</Link>
+            Don&apos;t have an account? <Link to="/register">Register</Link>
           </p>
         </div>
       </main>
@@ -103,7 +103,11 @@ export default function Login() {
 }
 
 const styles = {
-  main: { padding: 18, display: "grid", placeItems: "center" },
+  main: {
+    padding: 18,
+    display: "grid",
+    placeItems: "center",
+  },
   card: {
     width: "100%",
     maxWidth: 420,
@@ -111,10 +115,28 @@ const styles = {
     borderRadius: 14,
     padding: 18,
   },
-  sub: { marginTop: 6, color: "#555" },
-  form: { display: "grid", gap: 10, marginTop: 12 },
-  label: { fontSize: 13, fontWeight: 700 },
-  input: { padding: 10, borderRadius: 10, border: "1px solid #ccc" },
+  sub: {
+    marginTop: 6,
+    color: "#555",
+  },
+  error: {
+    color: "red",
+    marginTop: 10,
+  },
+  form: {
+    display: "grid",
+    gap: 10,
+    marginTop: 12,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  input: {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ccc",
+  },
   btn: {
     marginTop: 6,
     padding: 10,
@@ -125,5 +147,7 @@ const styles = {
     fontWeight: 800,
     cursor: "pointer",
   },
-  bottom: { marginTop: 12 },
+  bottom: {
+    marginTop: 12,
+  },
 };

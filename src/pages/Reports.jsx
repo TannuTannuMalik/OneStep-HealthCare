@@ -14,7 +14,7 @@ export default function Reports() {
     setLoading(true);
     setErrMsg("");
     try {
-      const res = await api.get("/api/reports/patient/me");
+      const res = await api.get("/reports/patient/me");
       if (res.data.ok) {
         setReports(res.data.data || []);
       } else {
@@ -30,13 +30,23 @@ export default function Reports() {
   const verifyReport = async (reportId) => {
     setVerifying((v) => ({ ...v, [reportId]: true }));
     try {
-      const res = await api.get(`/api/reports/${reportId}/verify`);
+      const res = await api.get(`/reports/${reportId}/verify`);
       const { tampered, dbMatch, chainMatch, blockchainTx } = res.data.data;
 
       if (!tampered) {
-        alert(`✅ Report #${reportId} is AUTHENTIC\n\nDB Check: ${dbMatch ? "✅ Pass" : "❌ Fail"}\nBlockchain Check: ${chainMatch ? "✅ Pass" : "❌ Fail"}\n\nTx: ${blockchainTx}`);
+        alert(
+          `✅ Report #${reportId} is AUTHENTIC\n\nDB Check: ${
+            dbMatch ? "✅ Pass" : "❌ Fail"
+          }\nBlockchain Check: ${
+            chainMatch ? "✅ Pass" : "❌ Fail"
+          }\n\nTx: ${blockchainTx}`
+        );
       } else {
-        alert(`🚨 Report #${reportId} has been TAMPERED!\n\nDB Check: ${dbMatch ? "✅ Pass" : "❌ Fail"}\nBlockchain Check: ${chainMatch ? "✅ Pass" : "❌ Fail"}`);
+        alert(
+          `🚨 Report #${reportId} has been TAMPERED!\n\nDB Check: ${
+            dbMatch ? "✅ Pass" : "❌ Fail"
+          }\nBlockchain Check: ${chainMatch ? "✅ Pass" : "❌ Fail"}`
+        );
       }
     } catch (e) {
       alert("Verification failed: " + (e.response?.data?.error || e.message));
@@ -47,7 +57,7 @@ export default function Reports() {
 
   const downloadReport = async (reportId) => {
     try {
-      const res = await api.get(`/api/reports/${reportId}/download`, {
+      const res = await api.get(`/reports/${reportId}/download`, {
         responseType: "blob",
       });
 
@@ -144,17 +154,10 @@ export default function Reports() {
                   </div>
                 </div>
 
-                {/* Preview info */}
                 <div style={{ marginTop: 10, lineHeight: 1.6 }}>
-                  {r.diagnosis && (
-                    <div><b>Diagnosis:</b> {r.diagnosis}</div>
-                  )}
-                  {r.prescription && (
-                    <div><b>Prescription:</b> {r.prescription}</div>
-                  )}
-                  {r.improvementSuggestions && (
-                    <div><b>Suggestions:</b> {r.improvementSuggestions}</div>
-                  )}
+                  {r.diagnosis && <div><b>Diagnosis:</b> {r.diagnosis}</div>}
+                  {r.prescription && <div><b>Prescription:</b> {r.prescription}</div>}
+                  {r.improvementSuggestions && <div><b>Suggestions:</b> {r.improvementSuggestions}</div>}
                 </div>
 
                 <div style={styles.actions}>

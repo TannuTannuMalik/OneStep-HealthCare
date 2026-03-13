@@ -1,38 +1,27 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  "https://onestep-healthcare-production.up.railway.app" || "http://localhost:5000";
+export let socket = null;
 
-export const socket = io(SOCKET_URL, {
-  transports: ["websocket"], // NO polling — Railway blocks it
-  withCredentials: true,
-  autoConnect: false, // don't connect until logged in
-  auth: {
-    token: localStorage.getItem("token") || "",
-  },
-});
-
-/**
- * Call this after login to reconnect the socket with the fresh token.
- * Usage: connectSocket()  (in Login.jsx after successful login)
- */
 export function connectSocket() {
   const token = localStorage.getItem("token");
-  if (token) {
-    socket.auth = { token };
+
+  if (!socket) {
+    socket = io("http://localhost:5000", {
+      transports: ["websocket"],
+      auth: { token },
+    });
   }
-  if (!socket.connected) {
-    socket.connect();
-  }
+
+  return socket;
 }
 
-/**
- * Call this on logout to cleanly disconnect.
- * Usage: disconnectSocket()
- */
+export function getSocket() {
+  return socket;
+}
+
 export function disconnectSocket() {
-  if (socket.connected) {
+  if (socket) {
     socket.disconnect();
+    socket = null;
   }
 }

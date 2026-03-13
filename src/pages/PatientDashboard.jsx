@@ -2,7 +2,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef } from "react";
-import { socket } from "../utils/socket";
+import { socket, connectSocket } from "../utils/socket";
 import { api } from "../utils/api";
 
 export default function PatientDashboard() {
@@ -88,20 +88,20 @@ export default function PatientDashboard() {
   };
 
   const loadAppointments = async () => {
-    const res = await api.get("/api/appointments/patient/me");
+    const res = await api.get("/appointments/patient/me");
     if (res.data.ok) setAppointments(res.data.data || []);
     else throw new Error(res.data.error || "Failed to load appointments");
   };
 
   const loadReports = async () => {
-    const res = await api.get("/api/reports/patient/me");
+    const res = await api.get("/reports/patient/me");
     if (res.data.ok) setReports(res.data.data || []);
     else throw new Error(res.data.error || "Failed to load reports");
   };
 
   const downloadReport = async (reportId) => {
     try {
-      const res = await api.get(`/api/reports/${reportId}/download`, {
+      const res = await api.get(`/reports/${reportId}/download`, {
         responseType: "blob",
       });
 
@@ -143,6 +143,10 @@ export default function PatientDashboard() {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    connectSocket();
+
+    if (!socket) return;
 
     socket.emit("join", { userId: user.id });
 
