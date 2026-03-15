@@ -24,8 +24,7 @@ app.use(
     credentials: true,
   })
 );
-app.use("/api/chat", chatRoutes);
-app.use(express.json());
+
 
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
@@ -52,14 +51,14 @@ app.use((req, res, next) => {
   req.io = io;
   next();
 });
-
+app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/video", videoRoutes);
-
+app.use("/api/chat", chatRoutes);
 app.get("/db-test", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 as test");
