@@ -11,7 +11,7 @@ import uploadRoutes from "./routes/upload.js";
 import appointmentsRoutes from "./routes/appointments.js";
 import reportsRoutes from "./routes/reports.js";
 import videoRoutes from "./routes/video.js";
-
+import chatRoutes from "./routes/chat.js";
 dotenv.config();
 
 const app = express();
@@ -24,7 +24,7 @@ app.use(
     credentials: true,
   })
 );
-
+app.use("/api/chat", chatRoutes);
 app.use(express.json());
 
 app.get("/", (req, res) => {
