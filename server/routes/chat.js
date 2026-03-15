@@ -1,5 +1,4 @@
 import express from "express";
-import { authRequired } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -224,7 +223,7 @@ function getResponse(message) {
 
 // ─── POST /api/chat ────────────────────────────────────────────────────────────
 
-router.post("/", authRequired, (req, res) => {
+router.post("/", (req, res) => {
   try {
     const { message } = req.body;
 
@@ -238,8 +237,7 @@ router.post("/", authRequired, (req, res) => {
 
     const { response, category } = getResponse(message);
 
-    console.log(`[chat] userId=${req.user.id} category=${category} message="${message.slice(0, 60)}"`);
-
+    console.log(`[chat] category=${category} message="${message.slice(0, 60)}"`);
     return res.json({ ok: true, response, category });
   } catch (err) {
     console.error("[chat] error:", err);

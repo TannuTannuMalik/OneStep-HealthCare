@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { socket, connectSocket } from "../utils/socket";
 import { api } from "../utils/api";
+import ChatBot from "../pages/ChatBot";
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
@@ -394,6 +395,7 @@ export default function PatientDashboard() {
             ))
           )}
         </section>
+        <ChatBot />
 
         <div style={styles.note}>
           <b>Reminder:</b> This platform provides guidance only and does not give medical diagnosis.
