@@ -26,7 +26,7 @@ export default function Appointments() {
 
   useEffect(() => {
     api
-      .get("/api/appointments/patient/me")
+      .get("/appointments/patient/me")
       .then((res) => {
         if (res.data.ok) setAppointments(res.data.data || []);
         else setError(res.data.error || "Failed to load appointments");
@@ -153,7 +153,7 @@ function AppointmentCard({ a, statusColor, navigate }) {
         a.status === "CONFIRMED" &&
         !isJoinable && (
           <p style={styles.infoText}>
-            Video call will be available 1 minutes before appointment time.
+            Video call will be available 1 minute before appointment time.
           </p>
         )}
 

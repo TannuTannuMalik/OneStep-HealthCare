@@ -1,7 +1,7 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
+import cors from "cors";
 import { Server } from "socket.io";
 import { pool } from "./db.js";
 
@@ -11,55 +11,20 @@ import uploadRoutes from "./routes/upload.js";
 import appointmentsRoutes from "./routes/appointments.js";
 import reportsRoutes from "./routes/reports.js";
 import videoRoutes from "./routes/video.js";
-
+import chatRoutes from "./routes/chat.js";
 dotenv.config();
 
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  process.env.CLIENT_URL,
-  process.env.CLIENT_URL_LAN,
-  "https://one-step-health-care.vercel.app",
-].filter(Boolean);
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-
-  try {
-    const url = new URL(origin);
-    const host = url.hostname;
-    const port = url.port;
-
-    const isLocalNetworkHost =
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host.startsWith("192.168.") ||
-      host.startsWith("172.") ||
-      host.startsWith("10.");
-
-    return isLocalNetworkHost && port === "5173";
-  } catch {
-    return false;
-  }
-};
+const FRONTEND_URL = "http://localhost:5173";
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      console.log("HTTP origin:", origin);
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked for origin: ${origin}`));
-      }
-    },
+    origin: FRONTEND_URL,
     credentials: true,
   })
 );
-
+app.use("/api/chat", chatRoutes);
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -74,18 +39,10 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      console.log("Socket origin:", origin);
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Socket CORS blocked for origin: ${origin}`));
-      }
-    },
+    origin: FRONTEND_URL,
     methods: ["GET", "POST", "PATCH"],
     credentials: true,
   },
-  // ✅ websocket only — polling causes 502 on Railway
   transports: ["websocket"],
 });
 
@@ -195,11 +152,10 @@ const startServer = async () => {
     console.log("✅ DB connected successfully");
     conn.release();
   } catch (err) {
-    console.error("❌ DB connection failed:", err.message);
-    // ✅ Don't exit — let server still start so Railway health check passes
+    console.error("❌ DB connection failed:", err);
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
   });
 };

@@ -3,35 +3,36 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// ✅ Debug: log which DB vars are being used (remove after fixing)
-console.log("DB Config:", {
-  host: process.env.MYSQLHOST || process.env.DB_HOST || "localhost",
-  user: process.env.MYSQLUSER || process.env.DB_USER || "root",
-  database: process.env.MYSQLDATABASE || process.env.DB_NAME || "onestep",
-  port: process.env.MYSQLPORT || process.env.DB_PORT || 3306,
-  // don't log password
-});
+const {
+  MYSQL_URL,
+  DB_HOST,
+  DB_USER,
+  DB_PASSWORD,
+  DB_NAME,
+  DB_PORT
+} = process.env;
 
-export const pool = mysql.createPool({
-  host: process.env.MYSQLHOST || process.env.DB_HOST || "localhost",
-  user: process.env.MYSQLUSER || process.env.DB_USER || "root",
-  password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || "",
-  database: process.env.MYSQLDATABASE || process.env.DB_NAME || "onestep",
-  port: Number(process.env.MYSQLPORT || process.env.DB_PORT || 3306),
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+// Create connection pool
+export const pool = MYSQL_URL
+  ? mysql.createPool(MYSQL_URL) // Railway / production
+  : mysql.createPool({
+      host: DB_HOST || "localhost",
+      user: DB_USER || "root",
+      password: DB_PASSWORD || "",
+      database: DB_NAME || "onestep",
+      port: DB_PORT || 3306,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    });
 
+// Optional DB connection test
 export const testDB = async () => {
   try {
     const conn = await pool.getConnection();
-    console.log("✅ DB connected successfully");
+    console.log("✅ Database connected successfully");
     conn.release();
   } catch (err) {
-    // ✅ Log the full error so we can see what's wrong
-    console.error("❌ DB connection failed:", err.message);
-    console.error("❌ DB error code:", err.code);
-    console.error("❌ DB error details:", err);
+    console.error("❌ Database connection failed:", err.message);
   }
 };

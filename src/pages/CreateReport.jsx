@@ -28,14 +28,12 @@ export default function CreateReport() {
     followUpDate: "",
   });
 
-  // ✅ protect
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token || !user) navigate("/login");
     if (user?.role !== "DOCTOR") navigate("/login");
   }, [navigate, user]);
 
-  // ✅ load appointment details (doctor must own it)
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -43,7 +41,7 @@ export default function CreateReport() {
       setMsg("");
 
       try {
-        const res = await api.get(`/api/appointments/${appointmentId}`);
+        const res = await api.get(`/appointments/${appointmentId}`);
         if (res.data.ok) {
           setAppt(res.data.data);
         } else {
@@ -79,7 +77,7 @@ export default function CreateReport() {
         followUpDate: form.followUpDate ? new Date(form.followUpDate).toISOString() : null,
       };
 
-      const res = await api.post("/api/reports", payload);
+      const res = await api.post("/reports", payload);
 
       if (res.data.ok) {
         setMsg("Report created ✅ PDF generated + saved.");
