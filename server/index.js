@@ -12,11 +12,13 @@ import appointmentsRoutes from "./routes/appointments.js";
 import reportsRoutes from "./routes/reports.js";
 import videoRoutes from "./routes/video.js";
 import chatRoutes from "./routes/chat.js";
+
 dotenv.config();
 
 const app = express();
 
-const FRONTEND_URL = "http://localhost:5173";
+// ── CORS ─────────────────────────────────────────────────────────────────────
+const FRONTEND_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 app.use(
   cors({
@@ -25,7 +27,19 @@ app.use(
   })
 );
 
+// ── Middleware ────────────────────────────────────────────────────────────────
+app.use(express.json());
 
+// ── Routes ───────────────────────────────────────────────────────────────────
+app.use("/api/auth", authRoutes);
+app.use("/api/doctors", doctorRoutes);
+app.use("/api/appointments", appointmentsRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/video", videoRoutes);
+app.use("/api/chat", chatRoutes);
+
+// ── Health checks ─────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.send("OneStep Healthcare Backend Running 🚀");
 });
@@ -34,31 +48,6 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, message: "Backend running" });
 });
 
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: {
-    origin: FRONTEND_URL,
-    methods: ["GET", "POST", "PATCH"],
-    credentials: true,
-  },
-  transports: ["websocket"],
-});
-
-app.set("io", io);
-
-app.use((req, res, next) => {
-  req.io = io;
-  next();
-});
-app.use(express.json());
-app.use("/api/auth", authRoutes);
-app.use("/api/doctors", doctorRoutes);
-app.use("/api/appointments", appointmentsRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/reports", reportsRoutes);
-app.use("/api/video", videoRoutes);
-app.use("/api/chat", chatRoutes);
 app.get("/db-test", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 as test");
@@ -78,15 +67,37 @@ app.get("/debug-db-info", async (req, res) => {
   }
 });
 
+// ── HTTP + Socket.io server ───────────────────────────────────────────────────
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: FRONTEND_URL,
+    methods: ["GET", "POST", "PATCH"],
+    credentials: true,
+  },
+  transports: ["polling", "websocket"], // polling first for Railway compatibility
+});
+
+app.set("io", io);
+
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// ── Socket.io events ──────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log("✅ Socket connected:", socket.id);
 
+  // Personal room for push notifications
   socket.on("join", ({ userId }) => {
     if (!userId) return;
     socket.join(`user:${userId}`);
     console.log(`👤 Joined room user:${userId}`);
   });
 
+  // Video call signalling
   socket.on("join-video-room", ({ appointmentId }) => {
     if (!appointmentId) return;
 
@@ -143,6 +154,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
