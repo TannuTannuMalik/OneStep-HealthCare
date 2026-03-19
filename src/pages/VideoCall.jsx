@@ -1,17 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { socket } from "../utils/socket";
 import { api } from "../utils/api";
+import AgoraRTC from "agora-rtc-sdk-ng";
 import "./VideoCall.css";
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-  ],
-};
+const APP_ID = "57d0e7ff40d44e51a15c4822bbe6d583";
+
+const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
 export default function VideoCall() {
   const { appointmentId } = useParams();
@@ -19,11 +14,8 @@ export default function VideoCall() {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const pcRef = useRef(null);
-  const localStreamRef = useRef(null);
-  const iceCandidateQueueRef = useRef([]);
-  const cleanedUpRef = useRef(false);
-  const initializedRef = useRef(false);
+
+  const localTracksRef = useRef({ audio: null, video: null });
 
   const [callStatus, setCallStatus] = useState("Checking access…");
   const [accessError, setAccessError] = useState("");
@@ -32,6 +24,7 @@ export default function VideoCall() {
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [joined, setJoined] = useState(false);
 
   const user = (() => {
     try {
@@ -41,6 +34,7 @@ export default function VideoCall() {
     }
   })();
 
+  // ── Call timer ────────────────────────────────────────────────
   useEffect(() => {
     if (!peerConnected) return;
     const timer = setInterval(() => setCallDuration((s) => s + 1), 1000);
@@ -48,317 +42,94 @@ export default function VideoCall() {
   }, [peerConnected]);
 
   const formatDuration = (s) => {
-    const m = Math.floor(s / 60)
-      .toString()
-      .padStart(2, "0");
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
   };
 
-  const getMediaErrorMessage = (err) => {
-    console.error("getUserMedia error:", err);
-
-    if (!window.isSecureContext) {
-      return "Camera/microphone is unavailable on this page because the browser requires localhost or HTTPS for media access.";
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return "Camera/microphone API is unavailable here. Open the app on localhost or HTTPS.";
-    }
-
-    if (!err) return "Camera/microphone access failed.";
-
-    switch (err.name) {
-      case "NotAllowedError":
-        return "Camera/microphone permission was blocked. Please allow access in browser site settings.";
-      case "NotReadableError":
-        return "Camera or microphone is already being used by another app or browser tab.";
-      case "NotFoundError":
-        return "No camera or microphone was found on this device.";
-      case "SecurityError":
-        return "Browser security blocked camera/microphone access.";
-      case "AbortError":
-        return "Camera/microphone startup was interrupted. Please try again.";
-      case "OverconstrainedError":
-        return "Requested camera settings are not supported on this device.";
-      default:
-        return err.message || "Camera/microphone access failed.";
-    }
-  };
-
-  const drainIceQueue = useCallback(async () => {
-    while (
-      iceCandidateQueueRef.current.length > 0 &&
-      pcRef.current?.remoteDescription
-    ) {
-      const candidate = iceCandidateQueueRef.current.shift();
-      try {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.warn("[webrtc] ICE drain error:", e);
-      }
-    }
-  }, []);
-
-  const createPC = useCallback(() => {
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate) {
-        console.log("[webrtc] sending ICE candidate");
-        socket.emit("video-ice-candidate", { appointmentId, candidate });
-      }
-    };
-
-    pc.ontrack = ({ streams }) => {
-      console.log("[webrtc] ontrack fired", streams);
-
-      if (remoteVideoRef.current && streams[0]) {
-        remoteVideoRef.current.srcObject = streams[0];
-
-        remoteVideoRef.current.onloadedmetadata = () => {
-          console.log("[webrtc] remote video metadata loaded");
-          setPeerConnected(true);
-          setCallStatus("Connected ✅");
-        };
-
-        setPeerConnected(true);
-        setCallStatus("Connected ✅");
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      console.log("[webrtc] connection state:", state);
-
-      if (state === "connecting") {
-        setCallStatus("Connecting…");
-      }
-
-      if (state === "connected") {
-        setPeerConnected(true);
-        setCallStatus("Connected ✅");
-      }
-
-      if (state === "disconnected" || state === "failed" || state === "closed") {
-        setPeerConnected(false);
-
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
-
-        if (state !== "closed") {
-          setCallStatus("Peer disconnected");
-        }
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log("[webrtc] ICE state:", pc.iceConnectionState);
-    };
-
-    return pc;
-  }, [appointmentId]);
-
-  const doCleanup = useCallback(() => {
-    if (cleanedUpRef.current) return;
-    cleanedUpRef.current = true;
-
-    try {
-      socket.emit("leave-video-room", { appointmentId });
-    } catch {}
-
-    socket.off("video-room-full");
-    socket.off("video-peer-joined");
-    socket.off("video-offer");
-    socket.off("video-answer");
-    socket.off("video-ice-candidate");
-    socket.off("video-peer-left");
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch {}
-      });
-      localStreamRef.current = null;
-    }
-
-    if (pcRef.current) {
-      try {
-        pcRef.current.close();
-      } catch {}
-      pcRef.current = null;
-    }
-
-    iceCandidateQueueRef.current = [];
-  }, [appointmentId]);
-
+  // ── Main init ─────────────────────────────────────────────────
   useEffect(() => {
     if (!user) {
       navigate("/login");
       return;
     }
 
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    cleanedUpRef.current = false;
-
     let mounted = true;
 
-    socket.off("video-room-full");
-    socket.off("video-peer-joined");
-    socket.off("video-offer");
-    socket.off("video-answer");
-    socket.off("video-ice-candidate");
-    socket.off("video-peer-left");
-
-    const onRoomFull = () => {
-      if (mounted) {
-        setAccessError("This call is already full (max 2 participants).");
-      }
-    };
-
-    const onPeerJoined = async () => {
-      if (!mounted || !pcRef.current) return;
-      console.log("[socket] video-peer-joined");
-      setCallStatus("Peer joined — connecting…");
-
-      try {
-        const offer = await pcRef.current.createOffer();
-        console.log("[webrtc] created offer");
-        await pcRef.current.setLocalDescription(offer);
-        socket.emit("video-offer", { appointmentId, offer });
-      } catch (e) {
-        console.error("[webrtc] createOffer error:", e);
-      }
-    };
-
-    const onOffer = async ({ offer }) => {
-      if (!mounted || !pcRef.current) return;
-      console.log("[socket] received offer");
-      setCallStatus("Incoming call — connecting…");
-
-      try {
-        await pcRef.current.setRemoteDescription(
-          new RTCSessionDescription(offer)
-        );
-        await drainIceQueue();
-
-        const answer = await pcRef.current.createAnswer();
-        console.log("[webrtc] created answer");
-        await pcRef.current.setLocalDescription(answer);
-        socket.emit("video-answer", { appointmentId, answer });
-      } catch (e) {
-        console.error("[webrtc] createAnswer error:", e);
-      }
-    };
-
-    const onAnswer = async ({ answer }) => {
-      if (!mounted || !pcRef.current) return;
-      console.log("[socket] received answer");
-
-      try {
-        await pcRef.current.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
-        await drainIceQueue();
-      } catch (e) {
-        console.error("[webrtc] setRemoteDescription error:", e);
-      }
-    };
-
-    const onIceCandidate = async ({ candidate }) => {
-      if (!mounted || !pcRef.current) return;
-      console.log("[socket] received ICE candidate");
-
-      if (pcRef.current.remoteDescription) {
-        try {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.warn("[webrtc] addIceCandidate error:", e);
-        }
-      } else {
-        iceCandidateQueueRef.current.push(candidate);
-      }
-    };
-
-    const onPeerLeft = () => {
-      if (!mounted) return;
-      console.log("[socket] peer left");
-      setPeerConnected(false);
-      setCallStatus("The other person has left the call");
-
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
-    };
-
     const init = async () => {
+      // 1. Check access
       try {
         const res = await api.get(`/api/video/check/${appointmentId}`);
         if (!res.data.ok) throw new Error(res.data.error);
-
         if (mounted) {
           setPeerName(res.data.appointment.peerName || "");
           setCallStatus("Starting camera…");
         }
       } catch (err) {
-        if (mounted) {
-          setAccessError(err.response?.data?.error || err.message);
-        }
+        if (mounted) setAccessError(err.response?.data?.error || err.message);
         return;
       }
 
+      // 2. Create local tracks
       try {
-        if (!window.isSecureContext) {
-          throw new Error(
-            "Camera/microphone is only available on localhost or HTTPS. Open this app on localhost, or use HTTPS for other devices."
-          );
-        }
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error(
-            "Camera/microphone API is unavailable here. Open this app on localhost or HTTPS."
-          );
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true,
-        });
-
-        console.log("[media] local stream started");
-        localStreamRef.current = stream;
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        localTracksRef.current = { audio: audioTrack, video: videoTrack };
 
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+          videoTrack.play(localVideoRef.current);
         }
       } catch (err) {
-        if (mounted) {
-          setAccessError(getMediaErrorMessage(err));
-        }
+        if (mounted) setAccessError("Camera/microphone access failed. Please allow access and try again.");
         return;
       }
 
-      const pc = createPC();
-      pcRef.current = pc;
+      // 3. Listen for remote user
+      client.on("user-published", async (remoteUser, mediaType) => {
+        await client.subscribe(remoteUser, mediaType);
 
-      localStreamRef.current.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current);
+        if (mediaType === "video" && remoteVideoRef.current) {
+          remoteUser.videoTrack.play(remoteVideoRef.current);
+          if (mounted) {
+            setPeerConnected(true);
+            setCallStatus("Connected ✅");
+          }
+        }
+
+        if (mediaType === "audio") {
+          remoteUser.audioTrack.play();
+        }
       });
 
-      socket.on("video-room-full", onRoomFull);
-      socket.on("video-peer-joined", onPeerJoined);
-      socket.on("video-offer", onOffer);
-      socket.on("video-answer", onAnswer);
-      socket.on("video-ice-candidate", onIceCandidate);
-      socket.on("video-peer-left", onPeerLeft);
+      client.on("user-unpublished", () => {
+        if (mounted) {
+          setPeerConnected(false);
+          setCallStatus("The other person has left the call");
+        }
+      });
 
-      socket.emit("join-video-room", { appointmentId });
+      client.on("user-left", () => {
+        if (mounted) {
+          setPeerConnected(false);
+          setCallStatus("The other person has left the call");
+          if (remoteVideoRef.current) remoteVideoRef.current.innerHTML = "";
+        }
+      });
 
-      if (mounted) {
-        setCallStatus("Waiting for the other person…");
+      // 4. Join channel — use appointmentId as channel name
+      try {
+        const uid = Math.floor(Math.random() * 100000);
+        await client.join(APP_ID, `appointment-${appointmentId}`, null, uid);
+        await client.publish([
+          localTracksRef.current.audio,
+          localTracksRef.current.video,
+        ]);
+
+        if (mounted) {
+          setJoined(true);
+          setCallStatus("Waiting for the other person…");
+        }
+      } catch (err) {
+        if (mounted) setAccessError("Failed to join call: " + err.message);
       }
     };
 
@@ -366,47 +137,44 @@ export default function VideoCall() {
 
     return () => {
       mounted = false;
-      doCleanup();
+      cleanup();
     };
-  }, [appointmentId, navigate, user, createPC, doCleanup, drainIceQueue]);
+  }, [appointmentId]);
 
-  useEffect(() => {
-    const onConnect = () => console.log("socket connected:", socket.id);
-    const onDisconnect = (reason) =>
-      console.log("socket disconnected:", reason);
-    const onConnectError = (err) =>
-      console.error("socket connect error:", err.message);
+  const cleanup = async () => {
+    try {
+      if (localTracksRef.current.audio) {
+        localTracksRef.current.audio.stop();
+        localTracksRef.current.audio.close();
+      }
+      if (localTracksRef.current.video) {
+        localTracksRef.current.video.stop();
+        localTracksRef.current.video.close();
+      }
+      await client.leave();
+    } catch {}
+  };
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("connect_error", onConnectError);
-
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("connect_error", onConnectError);
-    };
-  }, []);
-
-  const endCall = () => {
-    doCleanup();
+  const endCall = async () => {
+    await cleanup();
     navigate(-1);
   };
 
-  const toggleMute = () => {
-    localStreamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = muted;
-    });
+  const toggleMute = async () => {
+    const audioTrack = localTracksRef.current.audio;
+    if (!audioTrack) return;
+    await audioTrack.setEnabled(muted);
     setMuted((m) => !m);
   };
 
-  const toggleVideo = () => {
-    localStreamRef.current?.getVideoTracks().forEach((track) => {
-      track.enabled = videoOff;
-    });
+  const toggleVideo = async () => {
+    const videoTrack = localTracksRef.current.video;
+    if (!videoTrack) return;
+    await videoTrack.setEnabled(videoOff);
     setVideoOff((v) => !v);
   };
 
+  // ── Error screen ──────────────────────────────────────────────
   if (accessError) {
     return (
       <div className="vc-error-page">
@@ -422,10 +190,9 @@ export default function VideoCall() {
     );
   }
 
-  const hasRemoteStream = !!remoteVideoRef.current?.srcObject;
-
   return (
     <div className="vc-page">
+      {/* Top bar */}
       <div className="vc-topbar">
         <span className={`vc-dot ${peerConnected ? "green" : "yellow"}`} />
         <span className="vc-status-text">{callStatus}</span>
@@ -436,16 +203,12 @@ export default function VideoCall() {
         <span className="vc-appt-id">Appointment #{appointmentId}</span>
       </div>
 
+      {/* Videos */}
       <div className="vc-videos">
         <div className="vc-remote-wrap">
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="vc-remote"
-          />
+          <div ref={remoteVideoRef} className="vc-remote" />
 
-          {!peerConnected && !hasRemoteStream && (
+          {!peerConnected && (
             <div className="vc-overlay">
               <div className="vc-spinner" />
               <p className="vc-overlay-status">{callStatus}</p>
@@ -457,11 +220,8 @@ export default function VideoCall() {
         </div>
 
         <div className="vc-local-wrap">
-          <video
+          <div
             ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
             className={`vc-local ${videoOff ? "vc-hidden" : ""}`}
           />
           {videoOff && (
@@ -474,6 +234,7 @@ export default function VideoCall() {
         </div>
       </div>
 
+      {/* Controls */}
       <div className="vc-controls">
         <button
           onClick={toggleMute}
