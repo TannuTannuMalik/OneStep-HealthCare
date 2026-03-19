@@ -12,7 +12,10 @@ const router = express.Router();
 // ─── Blockchain Setup ────────────────────────────────────────────────
 const BLOCKCHAIN_ABI = [
   "function storeProof(uint256 reportId, bytes32 pdfHash) public",
-  "function verify(uint256 reportId) public view returns (bytes32, uint256)"
+  "function verify(uint256 reportId) public view returns (bytes32, uint256)",
+  "function storePrescription(uint256 reportId, bytes32 prescriptionHash) public",
+  "function verifyPrescription(uint256 reportId) public view returns (bytes32, uint256, bool)",
+  "function invalidatePrescription(uint256 reportId) public",
 ];
 
 function logBlockchainEvent(type, data) {
@@ -30,6 +33,29 @@ function logBlockchainEvent(type, data) {
     console.log(`📝 TX Hash       : ${data.txHash}`);
     console.log(`🕐 Timestamp     : ${timestamp}`);
     console.log(`✅ Status        : CONFIRMED ON CHAIN`);
+    console.log(`${separator}\n`);
+  }
+
+  if (type === "PRESCRIPTION_STORE") {
+    console.log(`\n${separator}`);
+    console.log(`💊 BLOCKCHAIN EVENT — PRESCRIPTION STORED`);
+    console.log(`${separator}`);
+    console.log(`📋 Report ID     : #${data.reportId}`);
+    console.log(`🔐 Hash          : ${data.prescriptionHash}`);
+    console.log(`📝 TX Hash       : ${data.txHash}`);
+    console.log(`🕐 Timestamp     : ${timestamp}`);
+    console.log(`✅ Status        : CONFIRMED ON CHAIN`);
+    console.log(`${separator}\n`);
+  }
+
+  if (type === "PRESCRIPTION_VERIFY") {
+    console.log(`\n${separator}`);
+    console.log(`💊 BLOCKCHAIN EVENT — PRESCRIPTION VERIFIED`);
+    console.log(`${separator}`);
+    console.log(`📋 Report ID     : #${data.reportId}`);
+    console.log(`🔐 Hash          : ${data.prescriptionHash}`);
+    console.log(`✅ Valid         : ${data.isValid ? "YES" : "NO"}`);
+    console.log(`🕐 Verified At   : ${timestamp}`);
     console.log(`${separator}\n`);
   }
 
@@ -87,6 +113,36 @@ async function storeProofOnChain(reportId, pdfHashHex, patientId, doctorId) {
     return tx.hash;
   } catch (err) {
     console.error("⚠️ Blockchain storeProof failed (non-fatal):", err.message);
+    return null;
+  }
+}
+
+// ─── Store Prescription on Chain ─────────────────────────────────────
+async function storePrescriptionOnChain(reportId, prescriptionText) {
+  try {
+    const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
+    const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
+    const contract = new ethers.Contract(
+      process.env.BLOCKCHAIN_CONTRACT_ADDRESS,
+      BLOCKCHAIN_ABI,
+      wallet
+    );
+
+    const prescriptionHash = sha256Hex(Buffer.from(prescriptionText));
+    const bytes32Hash = "0x" + prescriptionHash.padStart(64, "0");
+
+    const tx = await contract.storePrescription(reportId, bytes32Hash);
+    await tx.wait();
+
+    logBlockchainEvent("PRESCRIPTION_STORE", {
+      reportId,
+      prescriptionHash,
+      txHash: tx.hash,
+    });
+
+    return { txHash: tx.hash, prescriptionHash };
+  } catch (err) {
+    console.error("⚠️ Blockchain storePrescription failed (non-fatal):", err.message);
     return null;
   }
 }
@@ -215,7 +271,13 @@ router.post("/", authRequired, requireRole("DOCTOR"), async (req, res) => {
 
     const pdfUrl = await uploadPDFBuffer(pdfBuffer, `report_${reportId}_appt_${appointmentId}`);
 
+    // Store PDF proof on blockchain
     const blockchainTx = await storeProofOnChain(reportId, pdfHash, appt.patientId, doctorProfileId);
+
+    // Store prescription on blockchain if prescription text exists
+    if (prescription && prescription.trim().length > 0) {
+      await storePrescriptionOnChain(reportId, prescription.trim());
+    }
 
     await pool.query(
       `
@@ -364,20 +426,17 @@ router.get("/:id/verify", authRequired, async (req, res) => {
     } else {
       return res.status(403).json({ ok: false, error: "Access denied" });
     }
-    // ──────────────────────────────────────────────────────
 
     if (!pdfUrl)
       return res.status(400).json({ ok: false, error: "PDF not uploaded yet" });
     if (!blockchainTx)
       return res.status(400).json({ ok: false, error: "Not stored on blockchain yet" });
 
-    // fetch PDF from Cloudinary and rehash
     const response = await fetch(pdfUrl);
     const arrayBuffer = await response.arrayBuffer();
     const pdfBuffer = Buffer.from(arrayBuffer);
     const currentHash = sha256Hex(pdfBuffer);
 
-    // get hash from blockchain
     const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
     const contract = new ethers.Contract(
       process.env.BLOCKCHAIN_CONTRACT_ADDRESS,
@@ -414,6 +473,77 @@ router.get("/:id/verify", authRequired, async (req, res) => {
     });
   } catch (e) {
     console.error("verify error:", e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/**
+ * ✅ PRESCRIPTION: Verify prescription on blockchain
+ * GET /api/reports/:id/prescription
+ */
+router.get("/:id/prescription", authRequired, async (req, res) => {
+  try {
+    const reportId = req.params.id;
+
+    // ownership check
+    const [rows] = await pool.query(
+      `SELECT patientId, doctorId FROM consultation_reports WHERE id = ? LIMIT 1`,
+      [reportId]
+    );
+
+    if (rows.length === 0)
+      return res.status(404).json({ ok: false, error: "Report not found" });
+
+    const { patientId, doctorId } = rows[0];
+
+    if (req.user.role === "PATIENT") {
+      if (patientId !== req.user.id)
+        return res.status(403).json({ ok: false, error: "Access denied — not your report" });
+    } else if (req.user.role === "DOCTOR") {
+      const [docRows] = await pool.query(
+        "SELECT id FROM doctors WHERE userId = ? LIMIT 1", [req.user.id]
+      );
+      if (docRows.length === 0 || docRows[0].id !== doctorId)
+        return res.status(403).json({ ok: false, error: "Access denied — not your report" });
+    } else {
+      return res.status(403).json({ ok: false, error: "Access denied" });
+    }
+
+    // get prescription from blockchain
+    const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
+    const contract = new ethers.Contract(
+      process.env.BLOCKCHAIN_CONTRACT_ADDRESS,
+      BLOCKCHAIN_ABI,
+      provider
+    );
+
+    const [prescriptionHash, timestamp, isValid] = await contract.verifyPrescription(reportId);
+    const prescriptionHashClean = prescriptionHash.replace("0x", "").padStart(64, "0");
+
+    // check if prescription exists on chain
+    const notFound = prescriptionHashClean === "0".repeat(64);
+    if (notFound) {
+      return res.status(404).json({
+        ok: false,
+        error: "No prescription found on blockchain for this report",
+      });
+    }
+
+    logBlockchainEvent("PRESCRIPTION_VERIFY", {
+      reportId,
+      prescriptionHash: prescriptionHashClean,
+      isValid,
+    });
+
+    return res.json({
+      ok: true,
+      reportId,
+      prescriptionHash: prescriptionHashClean,
+      timestamp: Number(timestamp),
+      isValid,
+    });
+  } catch (e) {
+    console.error("prescription verify error:", e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
