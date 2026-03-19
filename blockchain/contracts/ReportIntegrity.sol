@@ -18,4 +18,27 @@ contract ReportIntegrity {
         Proof memory p = proofs[reportId];
         return (p.pdfHash, p.timestamp);
     }
+    
+// ── Prescription ──────────────────────────────────────────────
+    struct Prescription {
+        bytes32 prescriptionHash;
+        uint256 timestamp;
+        bool isValid;
+    }
+
+    mapping(uint256 => Prescription) public prescriptions;
+
+    function storePrescription(uint256 reportId, bytes32 prescriptionHash) public {
+        prescriptions[reportId] = Prescription(prescriptionHash, block.timestamp, true);
+    }
+
+    function verifyPrescription(uint256 reportId) public view returns (bytes32, uint256, bool) {
+        Prescription memory p = prescriptions[reportId];
+        return (p.prescriptionHash, p.timestamp, p.isValid);
+    }
+
+    function invalidatePrescription(uint256 reportId) public {
+        prescriptions[reportId].isValid = false;
+    }
 }
+

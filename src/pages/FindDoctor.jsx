@@ -19,8 +19,8 @@ export default function FindDoctor() {
       setDoctorError("");
       setLoadingDoctors(true);
       try {
-        const res = await api.get("/api/doctors");
-        if (res.data.ok) setDoctors(res.data.doctors);
+        const res = await api.get("/doctors");
+        if (res.data.ok) setDoctors(res.data.doctors || []);
         else setDoctorError(res.data.error || "Failed to load doctors");
       } catch (err) {
         setDoctorError(err.response?.data?.error || err.message);
@@ -134,7 +134,9 @@ export default function FindDoctor() {
                         src={d.photoUrl || defaultImg}
                         alt={d.name}
                         style={styles.avatarImg}
-                        onError={(e) => { e.currentTarget.src = defaultImg; }}
+                        onError={(e) => {
+                          e.currentTarget.src = defaultImg;
+                        }}
                       />
                     </div>
 

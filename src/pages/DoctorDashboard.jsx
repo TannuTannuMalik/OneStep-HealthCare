@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "./DoctorDashboard.css";
 import { api } from "../utils/api";
-import { socket } from "../utils/socket";
+import { socket, connectSocket } from "../utils/socket";
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
@@ -97,7 +97,7 @@ export default function DoctorDashboard() {
       setLoadingProfile(true);
 
       try {
-        const res = await api.get("/api/doctors/me");
+        const res = await api.get("/doctors/me");
         if (res.data.ok && res.data.doctor) {
           const d = res.data.doctor;
           setProfile({
@@ -122,7 +122,7 @@ export default function DoctorDashboard() {
     setApptsErr("");
     setLoadingAppts(true);
     try {
-      const res = await api.get("/api/appointments/doctor/me");
+      const res = await api.get("/appointments/doctor/me");
       if (res.data.ok) {
         const list = res.data.data || [];
         setAppointments(list);
@@ -151,6 +151,10 @@ export default function DoctorDashboard() {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    connectSocket();
+
+    if (!socket) return;
 
     socket.emit("join", { userId: user.id });
 
@@ -202,7 +206,7 @@ export default function DoctorDashboard() {
     setSavingProfile(true);
 
     try {
-      const res = await api.post("/api/doctors/me", profile);
+      const res = await api.post("/doctors/me", profile);
       if (res.data.ok) {
         setProfileMsg("Profile saved ✅ Patients can find you now.");
       } else {
@@ -229,7 +233,7 @@ export default function DoctorDashboard() {
       const formData = new FormData();
       formData.append("photo", photoFile);
 
-      const res = await api.post("/api/upload/doctor-photo", formData, {
+      const res = await api.post("/upload/doctor-photo", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -249,7 +253,7 @@ export default function DoctorDashboard() {
 
   const updateAppointmentStatus = async (appointmentId, status) => {
     try {
-      await api.patch(`/api/appointments/${appointmentId}/status`, { status });
+      await api.patch(`/appointments/${appointmentId}/status`, { status });
       await loadAppointments();
       alert(`Appointment ${status} ✅`);
     } catch (e) {
@@ -286,7 +290,7 @@ export default function DoctorDashboard() {
     try {
       setCreatingReport(true);
 
-      const res = await api.post("/api/reports", {
+      const res = await api.post("/reports", {
         appointmentId: selectedAppointment.id,
         diagnosis,
         prescription,
