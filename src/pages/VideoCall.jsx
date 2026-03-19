@@ -4,8 +4,6 @@ import { api } from "../utils/api";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import "./VideoCall.css";
 
-const APP_ID = "57d0e7ff40d44e51a15c4822bbe6d583";
-
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
 export default function VideoCall() {
@@ -14,7 +12,6 @@ export default function VideoCall() {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-
   const localTracksRef = useRef({ audio: null, video: null });
 
   const [callStatus, setCallStatus] = useState("Checking access…");
@@ -24,7 +21,6 @@ export default function VideoCall() {
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const [joined, setJoined] = useState(false);
 
   const user = (() => {
     try {
@@ -57,9 +53,10 @@ export default function VideoCall() {
     let mounted = true;
 
     const init = async () => {
-      // 1. Check access
+
+      // 1. Check access + get peer name
       try {
-        const res = await api.get(`/api/video/check/${appointmentId}`);
+        const res = await api.get(`/video/check/${appointmentId}`);
         if (!res.data.ok) throw new Error(res.data.error);
         if (mounted) {
           setPeerName(res.data.appointment.peerName || "");
@@ -70,7 +67,19 @@ export default function VideoCall() {
         return;
       }
 
-      // 2. Create local tracks
+      // 2. Get Agora channel + appId from backend
+      let channelName, appId;
+      try {
+        const tokenRes = await api.get(`/video/token/${appointmentId}`);
+        if (!tokenRes.data.ok) throw new Error(tokenRes.data.error);
+        channelName = tokenRes.data.channelName;
+        appId = tokenRes.data.appId;
+      } catch (err) {
+        if (mounted) setAccessError("Failed to get call session: " + (err.response?.data?.error || err.message));
+        return;
+      }
+
+      // 3. Create local audio + video tracks
       try {
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
         localTracksRef.current = { audio: audioTrack, video: videoTrack };
@@ -83,7 +92,7 @@ export default function VideoCall() {
         return;
       }
 
-      // 3. Listen for remote user
+      // 4. Listen for remote user joining
       client.on("user-published", async (remoteUser, mediaType) => {
         await client.subscribe(remoteUser, mediaType);
 
@@ -115,17 +124,16 @@ export default function VideoCall() {
         }
       });
 
-      // 4. Join channel — use appointmentId as channel name
+      // 5. Join Agora channel using backend-provided appId + channelName
       try {
         const uid = Math.floor(Math.random() * 100000);
-        await client.join(APP_ID, `appointment-${appointmentId}`, null, uid);
+        await client.join(appId, channelName, null, uid);
         await client.publish([
           localTracksRef.current.audio,
           localTracksRef.current.video,
         ]);
 
         if (mounted) {
-          setJoined(true);
           setCallStatus("Waiting for the other person…");
         }
       } catch (err) {
@@ -141,6 +149,7 @@ export default function VideoCall() {
     };
   }, [appointmentId]);
 
+  // ── Cleanup on unmount ────────────────────────────────────────
   const cleanup = async () => {
     try {
       if (localTracksRef.current.audio) {
