@@ -8,7 +8,7 @@ const router = express.Router();
  * GET /api/video/check/:appointmentId
  * Only the correct patient or correct doctor can join.
  * Only VIDEO + CONFIRMED appointments can join.
- * Join allowed only from 10 minutes before start until appointment end.
+ * Join allowed only from 1 minute before start until appointment end.
  */
 router.get("/check/:appointmentId", authRequired, async (req, res) => {
   try {
@@ -89,8 +89,7 @@ router.get("/check/:appointmentId", authRequired, async (req, res) => {
     if (now < joinWindowStart || now > end) {
       return res.status(403).json({
         ok: false,
-        error:
-          "Video call can only be joined from 1 minute before the appointment until it ends.",
+        error: "Video call can only be joined from 1 minute before the appointment until it ends.",
       });
     }
 
@@ -100,6 +99,60 @@ router.get("/check/:appointmentId", authRequired, async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/video/check error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/video/token/:appointmentId
+ * Returns Agora channel name and App ID for the video call session.
+ * Only the correct patient or doctor can get the token.
+ */
+router.get("/token/:appointmentId", authRequired, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    // ownership check
+    let query;
+    let params;
+
+    if (role === "PATIENT") {
+      query = `SELECT id FROM appointments WHERE id = ? AND patientId = ? LIMIT 1`;
+      params = [appointmentId, userId];
+    } else if (role === "DOCTOR") {
+      query = `
+        SELECT a.id FROM appointments a
+        JOIN doctors d ON a.doctorId = d.id
+        WHERE a.id = ? AND d.userId = ? LIMIT 1
+      `;
+      params = [appointmentId, userId];
+    } else {
+      return res.status(403).json({ ok: false, error: "Unauthorized role" });
+    }
+
+    const [rows] = await pool.query(query, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Appointment not found or access denied",
+      });
+    }
+
+    const channelName = `appointment-${appointmentId}`;
+    const appId = process.env.AGORA_APP_ID;
+
+    console.log(`[agora] channel=${channelName} userId=${userId} role=${role}`);
+
+    return res.json({
+      ok: true,
+      channelName,
+      appId,
+    });
+  } catch (err) {
+    console.error("GET /api/video/token error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
