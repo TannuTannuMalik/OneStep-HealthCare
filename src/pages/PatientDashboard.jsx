@@ -18,6 +18,10 @@ export default function PatientDashboard() {
   const [toast, setToast] = useState({ show: false, message: "", type: "info" });
   const toastTimerRef = useRef(null);
 
+  // prescription verification state
+  const [prescriptionResults, setPrescriptionResults] = useState({});
+  const [prescriptionLoading, setPrescriptionLoading] = useState({});
+
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "null");
@@ -124,6 +128,29 @@ export default function PatientDashboard() {
       const msg = e.response?.data?.error || e.message || "Download failed";
       showToast(msg, "error");
       alert(msg);
+    }
+  };
+
+  // ── Prescription verification ──────────────────────────────────
+  const verifyPrescription = async (reportId) => {
+    setPrescriptionLoading((prev) => ({ ...prev, [reportId]: true }));
+    try {
+      const res = await api.get(`/reports/${reportId}/prescription`);
+      if (res.data.ok) {
+        setPrescriptionResults((prev) => ({
+          ...prev,
+          [reportId]: res.data,
+        }));
+      } else {
+        showToast("Prescription not found on blockchain", "error");
+      }
+    } catch (e) {
+      showToast(
+        e.response?.data?.error || "Could not verify prescription",
+        "error"
+      );
+    } finally {
+      setPrescriptionLoading((prev) => ({ ...prev, [reportId]: false }));
     }
   };
 
@@ -267,6 +294,7 @@ export default function PatientDashboard() {
           </div>
         </section>
 
+        {/* ── Appointments ── */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
             <h2 style={{ margin: 0 }}>Appointments</h2>
@@ -352,6 +380,7 @@ export default function PatientDashboard() {
           )}
         </section>
 
+        {/* ── Reports + Prescription Verification ── */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
             <h2 style={{ margin: 0 }}>Reports</h2>
@@ -373,8 +402,41 @@ export default function PatientDashboard() {
                     <span style={styles.muted}>{r.doctorName}</span>
                   </div>
                   <div style={styles.muted}>
-                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "No date"}
+                    {r.createdAt
+                      ? new Date(r.createdAt).toLocaleDateString()
+                      : "No date"}
                   </div>
+
+                  {/* Prescription verification result */}
+                  {prescriptionResults[r.id] && (
+                    <div style={styles.prescriptionBox}>
+                      <div style={{ fontWeight: 900, marginBottom: 4 }}>
+                        ⛓️ Prescription on Blockchain
+                      </div>
+                      <div style={{ fontSize: 12, color: "#555" }}>
+                        Hash: {prescriptionResults[r.id].prescriptionHash?.slice(0, 20)}...
+                      </div>
+                      <div style={{ fontSize: 12, color: "#555" }}>
+                        Issued:{" "}
+                        {new Date(
+                          prescriptionResults[r.id].timestamp * 1000
+                        ).toLocaleString()}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontWeight: 900,
+                          color: prescriptionResults[r.id].isValid
+                            ? "#1b7a3c"
+                            : "#9c2a2a",
+                        }}
+                      >
+                        {prescriptionResults[r.id].isValid
+                          ? "✅ Prescription is VALID"
+                          : "❌ Prescription has been INVALIDATED"}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={styles.right}>
@@ -390,11 +452,24 @@ export default function PatientDashboard() {
                   >
                     Download PDF
                   </button>
+
+                  {/* Prescription verify button */}
+                  <button
+                    type="button"
+                    style={styles.prescriptionBtn}
+                    disabled={prescriptionLoading[r.id]}
+                    onClick={() => verifyPrescription(r.id)}
+                  >
+                    {prescriptionLoading[r.id]
+                      ? "Checking..."
+                      : "💊 Verify Prescription"}
+                  </button>
                 </div>
               </div>
             ))
           )}
         </section>
+
         <ChatBot />
 
         <div style={styles.note}>
@@ -490,6 +565,15 @@ const styles = {
     color: "#555",
   },
 
+  prescriptionBox: {
+    marginTop: 10,
+    background: "#f0fdf4",
+    border: "1px solid rgba(27,122,60,0.2)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    fontSize: 13,
+  },
+
   infoText: {
     marginTop: 8,
     fontSize: 13,
@@ -529,6 +613,16 @@ const styles = {
     fontWeight: 900,
     cursor: "pointer",
     textDecoration: "none",
+  },
+
+  prescriptionBtn: {
+    border: "1px solid #7c3aed",
+    background: "#fff",
+    color: "#7c3aed",
+    borderRadius: 10,
+    padding: "8px 12px",
+    fontWeight: 900,
+    cursor: "pointer",
   },
 
   verified: {
