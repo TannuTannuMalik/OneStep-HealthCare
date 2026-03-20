@@ -4,6 +4,9 @@ import { api } from "../utils/api";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import "./VideoCall.css";
 
+const FALLBACK_APP_ID = "820bbb9a81444e008d79131d1393e9de";
+
+
 const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
 export default function VideoCall() {
@@ -73,7 +76,7 @@ export default function VideoCall() {
         const tokenRes = await api.get(`/video/token/${appointmentId}`);
         if (!tokenRes.data.ok) throw new Error(tokenRes.data.error);
         channelName = tokenRes.data.channelName;
-        appId = tokenRes.data.appId;
+        appId = tokenRes.data.appId || FALLBACK_APP_ID;
       } catch (err) {
         if (mounted) setAccessError("Failed to get call session: " + (err.response?.data?.error || err.message));
         return;
