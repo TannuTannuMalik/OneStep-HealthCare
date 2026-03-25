@@ -7,15 +7,6 @@ import { socket, connectSocket } from "../utils/socket";
 export default function DoctorDashboard() {
   const navigate = useNavigate();
 
-  const sidebarItems = [
-    { key: "dashboard", icon: "▦" },
-    { key: "calendar", icon: "🗓" },
-    { key: "chat", icon: "💬" },
-    { key: "stats", icon: "⏱" },
-    { key: "settings", icon: "⚙" },
-    { key: "logout", icon: "⎋" },
-  ];
-
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "null");
@@ -184,11 +175,12 @@ export default function DoctorDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/login");
-  };
 
-  const onSidebarClick = (key) => {
-    if (key === "logout") return handleLogout();
+    if (socket) {
+      socket.disconnect();
+    }
+
+    navigate("/login");
   };
 
   const onProfileChange = (e) => {
@@ -322,36 +314,35 @@ export default function DoctorDashboard() {
     <div className="doc-wrap">
       <div className="doc-shell">
         <div className="doc-app">
-          <aside className="doc-sidebar">
-            {sidebarItems.slice(0, 5).map((it) => (
-              <button
-                key={it.key}
-                className="doc-sb-btn"
-                onClick={() => onSidebarClick(it.key)}
-                title={it.key}
-              >
-                {it.icon}
-              </button>
-            ))}
-            <div className="doc-sb-spacer" />
-            {sidebarItems.slice(5).map((it) => (
-              <button
-                key={it.key}
-                className="doc-sb-btn"
-                onClick={() => onSidebarClick(it.key)}
-                title={it.key}
-              >
-                {it.icon}
-              </button>
-            ))}
-          </aside>
-
-          <main className="doc-main">
-            <div className="doc-topbar">
-              <div className="doc-search">
+          <main className="doc-main" style={{ width: "100%" }}>
+            <div
+              className="doc-topbar"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div className="doc-search" style={{ flex: 1 }}>
                 <span style={{ opacity: 0.6 }}>🔎</span>
                 <input placeholder="Search (demo)" />
               </div>
+
+              <button
+                onClick={handleLogout}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#222",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Logout
+              </button>
             </div>
 
             <div className="doc-greet">
@@ -370,17 +361,17 @@ export default function DoctorDashboard() {
                     : "From database ✅"}
                 </div>
               </div>
-
-              <div className="doc-hero-photo">
-                <img
-                  src={photoUrl || defaultImg}
-                  alt="Doctor"
-                  onError={(e) => (e.currentTarget.src = defaultImg)}
-                />
-              </div>
             </section>
 
-            <section className="doc-bottom">
+            <section
+              className="doc-bottom"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.2fr 1fr",
+                gap: 20,
+                marginTop: 20,
+              }}
+            >
               <div className="doc-card">
                 <div className="doc-card-title">
                   <h4>Patient List</h4>
@@ -438,418 +429,413 @@ export default function DoctorDashboard() {
                 )}
               </div>
 
-              <div className="doc-card">
-                <div className="doc-card-title">
-                  <h4>Consultation</h4>
-                  <div className="doc-pill">Details</div>
-                </div>
-
-                {!selectedAppointment ? (
-                  <div style={{ opacity: 0.7, padding: 10 }}>
-                    Select an appointment to view details.
+              <div>
+                <div className="doc-card" style={{ marginBottom: 16 }}>
+                  <div className="doc-card-title">
+                    <h4>Doctor Profile</h4>
+                    <div className="doc-pill">Profile</div>
                   </div>
-                ) : (
-                  <>
-                    <div className="consult-top">
-                      <div className="consult-avatar">
-                        {(selectedAppointment.patientName || "P")[0]?.toUpperCase()}
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                    <img
+                      src={photoUrl || defaultImg}
+                      alt="Profile"
+                      onError={(e) => (e.currentTarget.src = defaultImg)}
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 800 }}>Dr. {displayName}</div>
+                      <div style={{ fontSize: 13, opacity: 0.7 }}>
+                        {profile.specialty || "No specialty added yet"}
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 900 }}>
-                          {selectedAppointment.patientName}
-                        </div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                          {new Date(
-                            selectedAppointment.requestedStart
-                          ).toLocaleString()}{" "}
-                          • {selectedAppointment.appointmentType}
-                        </div>
-                      </div>
                     </div>
+                  </div>
 
-                    <div className="note-box">
-                      <b>Patient note:</b>{" "}
-                      {selectedAppointment.patientNote
-                        ? selectedAppointment.patientNote
-                        : "—"}
-                    </div>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                    />
 
-                    <div className="note-box">
-                      <b>Status:</b> {selectedAppointment.status}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={uploadPhoto}
+                      disabled={photoUploading}
+                      style={{
+                        padding: 10,
+                        borderRadius: 10,
+                        border: "none",
+                        background: "#222",
+                        color: "#fff",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {photoUploading ? "Uploading..." : "Upload Photo"}
+                    </button>
 
-                    {selectedAppointment.status === "REQUESTED" && (
-                      <div
-                        className="note-box"
-                        style={{
-                          marginTop: 10,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <b>Appointment Request Action</b>
-
-                        <button
-                          type="button"
-                          onClick={() => confirmAppointment(selectedAppointment.id)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "none",
-                            background: "#0f7f7c",
-                            color: "#fff",
-                            fontWeight: 900,
-                            cursor: "pointer",
-                          }}
-                        >
-                          ✅ Confirm Appointment
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => rejectAppointment(selectedAppointment.id)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "none",
-                            background: "#b42318",
-                            color: "#fff",
-                            fontWeight: 900,
-                            cursor: "pointer",
-                          }}
-                        >
-                          ❌ Reject Appointment
-                        </button>
+                    {photoMsg && (
+                      <div style={{ color: "green", fontWeight: 700 }}>
+                        {photoMsg}
                       </div>
                     )}
+                    {photoErr && (
+                      <div style={{ color: "red", fontWeight: 700 }}>{photoErr}</div>
+                    )}
+                  </div>
 
-                    {selectedAppointment.appointmentType === "VIDEO" &&
-                      selectedAppointment.status === "CONFIRMED" &&
-                      !canJoinVideoCall(selectedAppointment) && (
-                        <div className="note-box" style={{ marginTop: 10 }}>
-                          Video call will be available {JOIN_WINDOW_MINUTES} minute
-                          {JOIN_WINDOW_MINUTES > 1 ? "s" : ""} before the
-                          appointment time.
+                  {loadingProfile ? (
+                    <p style={{ marginTop: 14 }}>Loading profile...</p>
+                  ) : (
+                    <form
+                      onSubmit={saveProfile}
+                      style={{ display: "grid", gap: 10, marginTop: 14 }}
+                    >
+                      <input
+                        name="specialty"
+                        placeholder="Specialty (e.g., General Physician)"
+                        value={profile.specialty}
+                        onChange={onProfileChange}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                        }}
+                      />
+
+                      <input
+                        name="experienceYears"
+                        type="number"
+                        min="0"
+                        placeholder="Experience (years)"
+                        value={profile.experienceYears}
+                        onChange={onProfileChange}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                        }}
+                      />
+
+                      <input
+                        name="location"
+                        placeholder="Location (e.g., Auckland)"
+                        value={profile.location}
+                        onChange={onProfileChange}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                        }}
+                      />
+
+                      <textarea
+                        name="bio"
+                        placeholder="Short bio"
+                        value={profile.bio}
+                        onChange={onProfileChange}
+                        rows={3}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                        }}
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={savingProfile}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: "none",
+                          background: "#0f7f7c",
+                          color: "white",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {savingProfile ? "Saving..." : "Save Profile"}
+                      </button>
+
+                      {profileMsg && (
+                        <div style={{ color: "green", fontWeight: 700 }}>
+                          {profileMsg}
+                        </div>
+                      )}
+                      {profileErr && (
+                        <div style={{ color: "red", fontWeight: 700 }}>
+                          {profileErr}
+                        </div>
+                      )}
+                    </form>
+                  )}
+                </div>
+
+                <div className="doc-card">
+                  <div className="doc-card-title">
+                    <h4>Consultation</h4>
+                    <div className="doc-pill">Details</div>
+                  </div>
+
+                  {!selectedAppointment ? (
+                    <div style={{ opacity: 0.7, padding: 10 }}>
+                      Select an appointment to view details.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="consult-top">
+                        <div className="consult-avatar">
+                          {(selectedAppointment.patientName || "P")[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 900 }}>
+                            {selectedAppointment.patientName}
+                          </div>
+                          <div style={{ fontSize: 12, opacity: 0.7 }}>
+                            {new Date(
+                              selectedAppointment.requestedStart
+                            ).toLocaleString()}{" "}
+                            • {selectedAppointment.appointmentType}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="note-box">
+                        <b>Patient note:</b>{" "}
+                        {selectedAppointment.patientNote
+                          ? selectedAppointment.patientNote
+                          : "—"}
+                      </div>
+
+                      <div className="note-box">
+                        <b>Status:</b> {selectedAppointment.status}
+                      </div>
+
+                      {selectedAppointment.status === "REQUESTED" && (
+                        <div
+                          className="note-box"
+                          style={{
+                            marginTop: 10,
+                            display: "grid",
+                            gap: 8,
+                          }}
+                        >
+                          <b>Appointment Request Action</b>
+
+                          <button
+                            type="button"
+                            onClick={() => confirmAppointment(selectedAppointment.id)}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "none",
+                              background: "#0f7f7c",
+                              color: "#fff",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            ✅ Confirm Appointment
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => rejectAppointment(selectedAppointment.id)}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "none",
+                              background: "#b42318",
+                              color: "#fff",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            ❌ Reject Appointment
+                          </button>
                         </div>
                       )}
 
-                    {canJoinVideoCall(selectedAppointment) && (
+                      {selectedAppointment.appointmentType === "VIDEO" &&
+                        selectedAppointment.status === "CONFIRMED" &&
+                        !canJoinVideoCall(selectedAppointment) && (
+                          <div className="note-box" style={{ marginTop: 10 }}>
+                            Video call will be available {JOIN_WINDOW_MINUTES} minute
+                            {JOIN_WINDOW_MINUTES > 1 ? "s" : ""} before the
+                            appointment time.
+                          </div>
+                        )}
+
+                      {canJoinVideoCall(selectedAppointment) && (
+                        <div className="note-box" style={{ marginTop: 10 }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(`/video-call/${selectedAppointment.id}`)
+                            }
+                            style={{
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              background: "#0f7f7c",
+                              color: "#fff",
+                              fontWeight: 900,
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            📹 Start / Join Video Call
+                          </button>
+                        </div>
+                      )}
+
                       <div className="note-box" style={{ marginTop: 10 }}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(`/video-call/${selectedAppointment.id}`)
-                          }
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: 10,
-                            background: "#0f7f7c",
-                            color: "#fff",
-                            fontWeight: 900,
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                        >
-                          📹 Start / Join Video Call
-                        </button>
+                        <b>Create Consultation Report</b>
+
+                        <div style={{ marginTop: 10 }}>
+                          <Link
+                            to={`/doctor/report/${selectedAppointment.id}`}
+                            style={{
+                              display: "inline-block",
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              background: "#222",
+                              color: "white",
+                              fontWeight: 900,
+                              textDecoration: "none",
+                            }}
+                          >
+                            Open Full Report Page
+                          </Link>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                          <button
+                            type="button"
+                            onClick={() => markCompleted(selectedAppointment.id)}
+                            disabled={selectedAppointment.status !== "CONFIRMED"}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                              background:
+                                selectedAppointment.status !== "CONFIRMED"
+                                  ? "#f5f5f5"
+                                  : "#fff",
+                              fontWeight: 800,
+                              cursor:
+                                selectedAppointment.status !== "CONFIRMED"
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
+                          >
+                            {selectedAppointment.status === "COMPLETED"
+                              ? "Already COMPLETED ✅"
+                              : "Mark Appointment as COMPLETED"}
+                          </button>
+
+                          <input
+                            placeholder="Diagnosis"
+                            value={diagnosis}
+                            onChange={(e) => setDiagnosis(e.target.value)}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                            }}
+                          />
+
+                          <input
+                            placeholder="Prescription"
+                            value={prescription}
+                            onChange={(e) => setPrescription(e.target.value)}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                            }}
+                          />
+
+                          <textarea
+                            placeholder="Doctor Notes"
+                            value={doctorNotes}
+                            onChange={(e) => setDoctorNotes(e.target.value)}
+                            rows={3}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                            }}
+                          />
+
+                          <textarea
+                            placeholder="Improvement Suggestions (important)"
+                            value={improvementSuggestions}
+                            onChange={(e) =>
+                              setImprovementSuggestions(e.target.value)
+                            }
+                            rows={3}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                            }}
+                          />
+
+                          <input
+                            type="date"
+                            value={followUpDate}
+                            onChange={(e) => setFollowUpDate(e.target.value)}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "1px solid #ddd",
+                            }}
+                          />
+
+                          <button
+                            type="button"
+                            onClick={createReport}
+                            disabled={creatingReport}
+                            style={{
+                              padding: 10,
+                              borderRadius: 10,
+                              border: "none",
+                              background: "#0f7f7c",
+                              color: "#fff",
+                              fontWeight: 900,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {creatingReport
+                              ? "Creating..."
+                              : "Create Report + Generate PDF"}
+                          </button>
+
+                          {reportMsg && (
+                            <div style={{ color: "green", fontWeight: 800 }}>
+                              {reportMsg}
+                            </div>
+                          )}
+                          {reportErr && (
+                            <div style={{ color: "crimson", fontWeight: 800 }}>
+                              {reportErr}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-
-                    <div className="note-box" style={{ marginTop: 10 }}>
-                      <b>Create Consultation Report</b>
-
-                      <div style={{ marginTop: 10 }}>
-                        <Link
-                          to={`/doctor/report/${selectedAppointment.id}`}
-                          style={{
-                            display: "inline-block",
-                            padding: "10px 12px",
-                            borderRadius: 10,
-                            background: "#222",
-                            color: "white",
-                            fontWeight: 900,
-                            textDecoration: "none",
-                          }}
-                        >
-                          Open Full Report Page
-                        </Link>
-                      </div>
-
-                      <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-                        <button
-                          type="button"
-                          onClick={() => markCompleted(selectedAppointment.id)}
-                          disabled={selectedAppointment.status !== "CONFIRMED"}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                            background:
-                              selectedAppointment.status !== "CONFIRMED"
-                                ? "#f5f5f5"
-                                : "#fff",
-                            fontWeight: 800,
-                            cursor:
-                              selectedAppointment.status !== "CONFIRMED"
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                        >
-                          {selectedAppointment.status === "COMPLETED"
-                            ? "Already COMPLETED ✅"
-                            : "Mark Appointment as COMPLETED"}
-                        </button>
-
-                        <input
-                          placeholder="Diagnosis"
-                          value={diagnosis}
-                          onChange={(e) => setDiagnosis(e.target.value)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                          }}
-                        />
-
-                        <input
-                          placeholder="Prescription"
-                          value={prescription}
-                          onChange={(e) => setPrescription(e.target.value)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                          }}
-                        />
-
-                        <textarea
-                          placeholder="Doctor Notes"
-                          value={doctorNotes}
-                          onChange={(e) => setDoctorNotes(e.target.value)}
-                          rows={3}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                          }}
-                        />
-
-                        <textarea
-                          placeholder="Improvement Suggestions (important)"
-                          value={improvementSuggestions}
-                          onChange={(e) =>
-                            setImprovementSuggestions(e.target.value)
-                          }
-                          rows={3}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                          }}
-                        />
-
-                        <input
-                          type="date"
-                          value={followUpDate}
-                          onChange={(e) => setFollowUpDate(e.target.value)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "1px solid #ddd",
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={createReport}
-                          disabled={creatingReport}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            border: "none",
-                            background: "#0f7f7c",
-                            color: "#fff",
-                            fontWeight: 900,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {creatingReport
-                            ? "Creating..."
-                            : "Create Report + Generate PDF"}
-                        </button>
-
-                        {reportMsg && (
-                          <div style={{ color: "green", fontWeight: 800 }}>
-                            {reportMsg}
-                          </div>
-                        )}
-                        {reportErr && (
-                          <div style={{ color: "crimson", fontWeight: 800 }}>
-                            {reportErr}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             </section>
           </main>
-
-          <aside className="doc-right">
-            <div className="right-top">
-              <button className="icon-btn" title="Messages">
-                💬
-              </button>
-              <button className="icon-btn" title="Notifications">
-                🔔
-              </button>
-
-              <div className="profile">
-                <img
-                  src={photoUrl || defaultImg}
-                  alt="Profile"
-                  onError={(e) => (e.currentTarget.src = defaultImg)}
-                />
-                <div style={{ fontWeight: 800, fontSize: 13 }}>
-                  Dr. {displayName}
-                </div>
-              </div>
-            </div>
-
-            <div className="news" style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>
-                PROFILE PHOTO
-              </div>
-
-              <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-                />
-
-                <button
-                  type="button"
-                  onClick={uploadPhoto}
-                  disabled={photoUploading}
-                  style={{
-                    padding: 10,
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#222",
-                    color: "#fff",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  {photoUploading ? "Uploading..." : "Upload Photo"}
-                </button>
-
-                {photoMsg && (
-                  <div style={{ color: "green", fontWeight: 700 }}>
-                    {photoMsg}
-                  </div>
-                )}
-                {photoErr && (
-                  <div style={{ color: "red", fontWeight: 700 }}>{photoErr}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="news" style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 900 }}>
-                DOCTOR PROFILE
-              </div>
-
-              {loadingProfile ? (
-                <p style={{ marginTop: 10 }}>Loading profile...</p>
-              ) : (
-                <form
-                  onSubmit={saveProfile}
-                  style={{ display: "grid", gap: 10, marginTop: 10 }}
-                >
-                  <input
-                    name="specialty"
-                    placeholder="Specialty (e.g., General Physician)"
-                    value={profile.specialty}
-                    onChange={onProfileChange}
-                    style={{
-                      padding: 10,
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                    }}
-                  />
-
-                  <input
-                    name="experienceYears"
-                    type="number"
-                    min="0"
-                    placeholder="Experience (years)"
-                    value={profile.experienceYears}
-                    onChange={onProfileChange}
-                    style={{
-                      padding: 10,
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                    }}
-                  />
-
-                  <input
-                    name="location"
-                    placeholder="Location (e.g., Auckland)"
-                    value={profile.location}
-                    onChange={onProfileChange}
-                    style={{
-                      padding: 10,
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                    }}
-                  />
-
-                  <textarea
-                    name="bio"
-                    placeholder="Short bio"
-                    value={profile.bio}
-                    onChange={onProfileChange}
-                    rows={3}
-                    style={{
-                      padding: 10,
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                    }}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={savingProfile}
-                    style={{
-                      padding: 10,
-                      borderRadius: 10,
-                      border: "none",
-                      background: "#0f7f7c",
-                      color: "white",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {savingProfile ? "Saving..." : "Save Profile"}
-                  </button>
-
-                  {profileMsg && (
-                    <div style={{ color: "green", fontWeight: 700 }}>
-                      {profileMsg}
-                    </div>
-                  )}
-                  {profileErr && (
-                    <div style={{ color: "red", fontWeight: 700 }}>
-                      {profileErr}
-                    </div>
-                  )}
-                </form>
-              )}
-            </div>
-          </aside>
         </div>
       </div>
     </div>

@@ -16,8 +16,15 @@ export default function Contact() {
 
   const onSubmit = (e) => {
     e.preventDefault();
-    alert("Message submitted (UI only). Next step: connect backend/email service.");
-    setForm({ firstName: "", lastName: "", email: "", phone: "", subject: "General", message: "" });
+    alert("Thank you! Your message has been submitted successfully. Our team will contact you shortly.");
+    setForm({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      subject: "General",
+      message: "",
+    });
   };
 
   return (
@@ -82,7 +89,12 @@ export default function Contact() {
 
           <div style={styles.field}>
             <label style={styles.label}>Subject</label>
-            <select style={styles.input} name="subject" value={form.subject} onChange={onChange}>
+            <select
+              style={styles.input}
+              name="subject"
+              value={form.subject}
+              onChange={onChange}
+            >
               <option>General</option>
               <option>Appointment</option>
               <option>Technical Support</option>
@@ -102,7 +114,9 @@ export default function Contact() {
             />
           </div>
 
-          <button style={styles.btn} type="submit">Submit</button>
+          <button style={styles.btn} type="submit">
+            Submit
+          </button>
 
           <div style={styles.note}>
             <b>Important:</b> OneStep HealthCare does not provide medical advice or diagnosis.

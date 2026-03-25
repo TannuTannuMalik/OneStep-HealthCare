@@ -11,10 +11,11 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.3",
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.2",
     "@types/node": "^22.0.0",
-    "hardhat": "^3.1.10",
+    "hardhat": "^3.2.0",
     "typescript": "~5.8.0"
   }
 }

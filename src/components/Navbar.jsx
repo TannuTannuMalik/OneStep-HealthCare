@@ -1,6 +1,28 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 
 export default function Navbar() {
+  const navigate = useNavigate();
+
+  let user = null;
+  let token = null;
+
+  try {
+    user = JSON.parse(localStorage.getItem("user") || "null");
+    token = localStorage.getItem("token");
+  } catch {
+    user = null;
+    token = null;
+  }
+
+  const isLoggedIn = !!user || !!token;
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+    window.location.reload();
+  };
+
   return (
     <header style={styles.header}>
       <div style={styles.left}>
@@ -18,12 +40,20 @@ export default function Navbar() {
       </div>
 
       <div style={styles.right}>
-        <NavLink to="/login" style={styles.loginBtn}>
-          Login
-        </NavLink>
-        <NavLink to="/register" style={styles.signupBtn}>
-          Sign Up
-        </NavLink>
+        {!isLoggedIn ? (
+          <>
+            <NavLink to="/login" style={styles.loginBtn}>
+              Login
+            </NavLink>
+            <NavLink to="/register" style={styles.signupBtn}>
+              Sign Up
+            </NavLink>
+          </>
+        ) : (
+          <button onClick={handleLogout} style={styles.logoutBtn}>
+            Logout
+          </button>
+        )}
       </div>
     </header>
   );
@@ -97,5 +127,15 @@ const styles = {
     color: "#fff",
     fontWeight: 900,
     fontSize: 13,
+  },
+  logoutBtn: {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(0,0,0,0.15)",
+    background: "#ffffff",
+    color: "#222",
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: "pointer",
   },
 };
