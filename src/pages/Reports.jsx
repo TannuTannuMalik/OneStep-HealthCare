@@ -13,6 +13,8 @@ export default function Reports() {
   const [errMsg, setErrMsg] = useState("");
   const [verifying, setVerifying] = useState({});
   const [verifyResults, setVerifyResults] = useState({});
+  const [checkingPrescription, setCheckingPrescription] = useState({});
+  const [prescriptionResults, setPrescriptionResults] = useState({});
 
   const loadReports = async () => {
     setLoading(true);
@@ -66,6 +68,40 @@ export default function Reports() {
       }));
     } finally {
       setVerifying((prev) => ({ ...prev, [reportId]: false }));
+    }
+  };
+
+  const verifyPrescription = async (reportId) => {
+    setCheckingPrescription((prev) => ({ ...prev, [reportId]: true }));
+
+    try {
+      const res = await api.get(`/reports/${reportId}/prescription`);
+
+      setPrescriptionResults((prev) => ({
+        ...prev,
+        [reportId]: {
+          success: true,
+          prescriptionHash: res.data.prescriptionHash,
+          timestamp: res.data.timestamp,
+          isValid: res.data.isValid,
+          message: res.data.isValid
+            ? "Prescription is valid on blockchain."
+            : "Prescription was found but marked invalid.",
+        },
+      }));
+    } catch (e) {
+      setPrescriptionResults((prev) => ({
+        ...prev,
+        [reportId]: {
+          success: false,
+          message:
+            e.response?.data?.error ||
+            e.message ||
+            "Prescription verification failed",
+        },
+      }));
+    } finally {
+      setCheckingPrescription((prev) => ({ ...prev, [reportId]: false }));
     }
   };
 
@@ -165,6 +201,7 @@ export default function Reports() {
             const hasPdf = !!r.pdfUrl;
             const hasBlockchain = !!r.blockchainTx;
             const result = verifyResults[r.id];
+            const prescriptionResult = prescriptionResults[r.id];
 
             return (
               <div key={r.id} style={styles.card}>
@@ -227,14 +264,51 @@ export default function Reports() {
 
                     {"dbMatch" in result && (
                       <div style={{ marginTop: 6, fontSize: 14 }}>
-                        DB Check: {result.dbMatch ? "✅ Pass" : "❌ Fail"} | Blockchain
-                        Check: {result.chainMatch ? "✅ Pass" : "❌ Fail"}
+                        DB Check: {result.dbMatch ? "✅ Pass" : "❌ Fail"} |
+                        Blockchain Check: {result.chainMatch ? "✅ Pass" : "❌ Fail"}
                       </div>
                     )}
 
                     {result.blockchainTx && (
                       <div style={{ marginTop: 6, fontSize: 13 }}>
                         Tx: {result.blockchainTx}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {prescriptionResult && (
+                  <div
+                    style={{
+                      ...styles.verifyBox,
+                      background: prescriptionResult.success
+                        ? "#eef6ff"
+                        : "#fff1f1",
+                      border: prescriptionResult.success
+                        ? "1px solid #9fc3f3"
+                        : "1px solid #efb0b0",
+                      color: prescriptionResult.success ? "#1a3a6b" : "#a12a2a",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>
+                      {prescriptionResult.message}
+                    </div>
+
+                    {prescriptionResult.prescriptionHash && (
+                      <div style={{ marginTop: 6, fontSize: 13 }}>
+                        Hash: {prescriptionResult.prescriptionHash}
+                      </div>
+                    )}
+
+                    {"isValid" in prescriptionResult && (
+                      <div style={{ marginTop: 6, fontSize: 14 }}>
+                        Valid: {prescriptionResult.isValid ? "✅ Yes" : "❌ No"}
+                      </div>
+                    )}
+
+                    {prescriptionResult.timestamp && (
+                      <div style={{ marginTop: 6, fontSize: 13 }}>
+                        Stored At: {formatDate(prescriptionResult.timestamp)}
                       </div>
                     )}
                   </div>
@@ -260,20 +334,41 @@ export default function Reports() {
                       </button>
 
                       {hasBlockchain && (
-                        <button
-                          type="button"
-                          style={{
-                            ...styles.btnVerify,
-                            opacity: verifying[r.id] ? 0.7 : 1,
-                            cursor: verifying[r.id] ? "not-allowed" : "pointer",
-                          }}
-                          onClick={() => verifyReport(r.id)}
-                          disabled={verifying[r.id]}
-                        >
-                          {verifying[r.id]
-                            ? "Verifying..."
-                            : "Verify Integrity"}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            style={{
+                              ...styles.btnVerify,
+                              opacity: verifying[r.id] ? 0.7 : 1,
+                              cursor: verifying[r.id]
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
+                            onClick={() => verifyReport(r.id)}
+                            disabled={verifying[r.id]}
+                          >
+                            {verifying[r.id]
+                              ? "Verifying..."
+                              : "Verify Integrity"}
+                          </button>
+
+                          <button
+                            type="button"
+                            style={{
+                              ...styles.btnOutline,
+                              opacity: checkingPrescription[r.id] ? 0.7 : 1,
+                              cursor: checkingPrescription[r.id]
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
+                            onClick={() => verifyPrescription(r.id)}
+                            disabled={checkingPrescription[r.id]}
+                          >
+                            {checkingPrescription[r.id]
+                              ? "Checking..."
+                              : "Verify Prescription"}
+                          </button>
+                        </>
                       )}
                     </>
                   ) : (
@@ -382,6 +477,7 @@ const styles = {
     color: "white",
     border: "none",
     borderRadius: "6px",
+    cursor: "pointer",
     fontWeight: 700,
   },
   verified: {
