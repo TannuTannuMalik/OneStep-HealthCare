@@ -14,8 +14,7 @@
     "./test",
     "./types/**/*",
     "./hardhat.config.ts"
-  ],
-  "files": [
-    "./types/ethers-contracts/hardhat.d.ts"
   ]
 }
+
+

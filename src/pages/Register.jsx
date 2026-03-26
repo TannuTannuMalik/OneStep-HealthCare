@@ -10,12 +10,13 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // keep your UI values, but convert to backend enums
+  // UI role (lowercase)
   const [role, setRole] = useState("patient");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // map UI role → backend enum
   const mapRole = (r) => {
     if (r === "doctor") return "DOCTOR";
     if (r === "admin") return "ADMIN";
@@ -35,7 +36,8 @@ export default function Register() {
         role: mapRole(role),
       };
 
-      const res = await api.post("/api/auth/register", payload);
+      // ✅ FIXED (removed /api)
+      const res = await api.post("/auth/register", payload);
 
       if (res.data.ok) {
         alert("Registered ✅ Now login");
@@ -53,12 +55,17 @@ export default function Register() {
   return (
     <div>
       <Navbar />
+
       <main style={styles.main}>
         <div style={styles.card}>
           <h2>Register</h2>
-          <p style={styles.sub}>Create an account (Patient / Doctor / Admin)</p>
+          <p style={styles.sub}>
+            Create an account (Patient / Doctor / Admin)
+          </p>
 
-          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+          {error && (
+            <p style={{ color: "red", marginTop: 10 }}>{error}</p>
+          )}
 
           <form onSubmit={onSubmit} style={styles.form}>
             <label style={styles.label}>Full Name</label>
@@ -116,7 +123,11 @@ export default function Register() {
 }
 
 const styles = {
-  main: { padding: 18, display: "grid", placeItems: "center" },
+  main: {
+    padding: 18,
+    display: "grid",
+    placeItems: "center",
+  },
   card: {
     width: "100%",
     maxWidth: 460,
@@ -124,10 +135,24 @@ const styles = {
     borderRadius: 14,
     padding: 18,
   },
-  sub: { marginTop: 6, color: "#555" },
-  form: { display: "grid", gap: 10, marginTop: 12 },
-  label: { fontSize: 13, fontWeight: 700 },
-  input: { padding: 10, borderRadius: 10, border: "1px solid #ccc" },
+  sub: {
+    marginTop: 6,
+    color: "#555",
+  },
+  form: {
+    display: "grid",
+    gap: 10,
+    marginTop: 12,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  input: {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ccc",
+  },
   btn: {
     marginTop: 6,
     padding: 10,
@@ -138,5 +163,7 @@ const styles = {
     fontWeight: 800,
     cursor: "pointer",
   },
-  bottom: { marginTop: 12 },
-}
+  bottom: {
+    marginTop: 12,
+  },
+};

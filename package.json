@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "agora-rtc-sdk-ng": "^4.24.3",
     "axios": "^1.13.5",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
