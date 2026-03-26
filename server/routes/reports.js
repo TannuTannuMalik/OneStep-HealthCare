@@ -436,6 +436,8 @@ router.get("/:id/verify", authRequired, async (req, res) => {
     const arrayBuffer = await response.arrayBuffer();
     const pdfBuffer = Buffer.from(arrayBuffer);
     const currentHash = sha256Hex(pdfBuffer);
+      console.log("Using contract:", process.env.BLOCKCHAIN_CONTRACT_ADDRESS);
+    console.log("Verifying reportId:", reportId);
 
     const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
     const contract = new ethers.Contract(
@@ -516,6 +518,8 @@ router.get("/:id/prescription", authRequired, async (req, res) => {
       BLOCKCHAIN_ABI,
       provider
     );
+console.log("Using contract:", process.env.BLOCKCHAIN_CONTRACT_ADDRESS);
+    console.log("Verifying prescription for reportId:", reportId);
 
     const [prescriptionHash, timestamp, isValid] = await contract.verifyPrescription(reportId);
     const prescriptionHashClean = prescriptionHash.replace("0x", "").padStart(64, "0");
