@@ -11,32 +11,38 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* IMPORTANT: remove Vite demo centering */
+/* BODY */
+
 body {
   margin: 0;
   padding: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #ffffff;
+  background: #f4f8fb;
 }
 
-/* IMPORTANT: make app full width */
+/* ROOT */
+
 #root {
   width: 100%;
+  min-height: 100vh;
   margin: 0;
   padding: 0;
 }
 
-/* Optional: consistent link styling */
+/* LINKS */
+
 a {
   color: inherit;
   text-decoration: none;
 }
+
 a:hover {
   text-decoration: underline;
 }
 
-/* Optional: keep buttons looking okay */
+/* BUTTONS */
+
 button {
   font-family: inherit;
 }

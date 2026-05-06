@@ -12,6 +12,7 @@ import appointmentsRoutes from "./routes/appointments.js";
 import reportsRoutes from "./routes/reports.js";
 import videoRoutes from "./routes/video.js";
 import chatRoutes from "./routes/chat.js";
+import pharmacyRoutes from "./routes/pharmacy.js";
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/video", videoRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/pharmacy", pharmacyRoutes);
 
 // ── Health checks ─────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {

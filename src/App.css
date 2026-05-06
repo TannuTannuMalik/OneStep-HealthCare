@@ -1,42 +1,127 @@
+/* FULL APP RESET */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  min-height: 100vh;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* BODY */
+
+body {
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background: #f4f8fb;
+  color: #111827;
+  overflow-x: hidden;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+/* ROOT */
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* LINKS */
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* BUTTONS */
+
+button {
+  font-family: inherit;
+  transition: 0.2s ease;
+}
+
+button:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+/* INPUTS */
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  outline: none;
+}
+
+/* SCROLLBAR */
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* NICE CONTAINER SYSTEM */
+
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* SOFT GLASS CARDS */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.4);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* PREMIUM GRADIENTS */
+
+.primary-gradient {
+  background: linear-gradient(
+    135deg,
+    #0f766e,
+    #14b8a6
+  );
+}
+
+.blue-gradient {
+  background: linear-gradient(
+    135deg,
+    #2563eb,
+    #60a5fa
+  );
+}
+
+.purple-gradient {
+  background: linear-gradient(
+    135deg,
+    #7c3aed,
+    #a78bfa
+  );
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
   }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }
