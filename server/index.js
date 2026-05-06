@@ -13,6 +13,8 @@ import reportsRoutes from "./routes/reports.js";
 import videoRoutes from "./routes/video.js";
 import chatRoutes from "./routes/chat.js";
 import pharmacyRoutes from "./routes/pharmacy.js";
+import symptomsRoutes from "./routes/symptoms.js";
+
 
 dotenv.config();
 
@@ -40,6 +42,7 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/video", videoRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
+app.use("/api/symptoms", symptomsRoutes);
 
 // ── Health checks ─────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {

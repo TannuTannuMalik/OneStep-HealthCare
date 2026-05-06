@@ -20,9 +20,8 @@ import PatientDashboard from "./pages/PatientDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CreateReport from "./pages/CreateReport";
 import VideoCall from "./pages/VideoCall";
-
-// ✅ Pharmacy Pages
 import PharmacyDashboard from "./pages/PharmacyDashboard";
+import PharmacyHistory from "./pages/PharmacyHistory";
 
 export default function App() {
   return (
@@ -48,7 +47,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/book/:doctorId"
           element={
@@ -57,7 +55,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/appointments"
           element={
@@ -66,7 +63,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/reports"
           element={
@@ -85,7 +81,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/doctor/report/:appointmentId"
           element={
@@ -115,12 +110,20 @@ export default function App() {
           }
         />
 
-        {/* ✅ Pharmacy Route */}
+        {/* Pharmacy Routes */}
         <Route
           path="/pharmacy/dashboard"
           element={
             <ProtectedRoute allowedRoles={["PHARMACIST"]}>
               <PharmacyDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pharmacy/history"
+          element={
+            <ProtectedRoute allowedRoles={["PHARMACIST"]}>
+              <PharmacyHistory />
             </ProtectedRoute>
           }
         />
