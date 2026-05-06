@@ -21,10 +21,14 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import CreateReport from "./pages/CreateReport";
 import VideoCall from "./pages/VideoCall";
 
+// ✅ Pharmacy Pages
+import PharmacyDashboard from "./pages/PharmacyDashboard";
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/services" element={<Services />} />
@@ -32,7 +36,10 @@ export default function App() {
         <Route path="/find-doctor" element={<FindDoctor />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
+        {/* Patient Routes */}
         <Route
           path="/patient"
           element={
@@ -52,14 +59,24 @@ export default function App() {
         />
 
         <Route
-          path="/doctor/report/:appointmentId"
+          path="/appointments"
           element={
-            <ProtectedRoute allowedRoles={["DOCTOR"]}>
-              <CreateReport />
+            <ProtectedRoute allowedRoles={["PATIENT"]}>
+              <Appointments />
             </ProtectedRoute>
           }
         />
 
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute allowedRoles={["PATIENT"]}>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Doctor Routes */}
         <Route
           path="/doctor"
           element={
@@ -70,6 +87,16 @@ export default function App() {
         />
 
         <Route
+          path="/doctor/report/:appointmentId"
+          element={
+            <ProtectedRoute allowedRoles={["DOCTOR"]}>
+              <CreateReport />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Video Call */}
+        <Route
           path="/video-call/:appointmentId"
           element={
             <ProtectedRoute allowedRoles={["DOCTOR", "PATIENT"]}>
@@ -78,6 +105,7 @@ export default function App() {
           }
         />
 
+        {/* Admin Route */}
         <Route
           path="/admin"
           element={
@@ -87,11 +115,17 @@ export default function App() {
           }
         />
 
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/appointments" element={<Appointments />} />
-        <Route path="/reports" element={<Reports />} />
+        {/* ✅ Pharmacy Route */}
+        <Route
+          path="/pharmacy/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["PHARMACIST"]}>
+              <PharmacyDashboard />
+            </ProtectedRoute>
+          }
+        />
 
+        {/* 404 */}
         <Route
           path="*"
           element={<h1 style={{ padding: 20 }}>404 - Page Not Found</h1>}

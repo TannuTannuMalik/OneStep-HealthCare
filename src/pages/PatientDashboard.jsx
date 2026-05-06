@@ -15,12 +15,13 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
 
-  const [toast, setToast] = useState({ show: false, message: "", type: "info" });
-  const toastTimerRef = useRef(null);
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "info",
+  });
 
-  // prescription verification state
-  const [prescriptionResults, setPrescriptionResults] = useState({});
-  const [prescriptionLoading, setPrescriptionLoading] = useState({});
+  const toastTimerRef = useRef(null);
 
   const user = useMemo(() => {
     try {
@@ -40,6 +41,7 @@ export default function PatientDashboard() {
     const now = new Date();
     const start = new Date(appointment.requestedStart);
     const end = new Date(appointment.requestedEnd);
+
     const joinWindowStart = new Date(
       start.getTime() - JOIN_WINDOW_MINUTES * 60 * 1000
     );
@@ -51,118 +53,78 @@ export default function PatientDashboard() {
     switch (status) {
       case "CONFIRMED":
         return {
-          background: "#dff7e6",
-          color: "#1b7a3c",
-          border: "1px solid rgba(27,122,60,0.25)",
+          background: "#dcfce7",
+          color: "#166534",
         };
+
       case "REQUESTED":
         return {
-          background: "#fff3cd",
-          color: "#8a5b00",
-          border: "1px solid rgba(138,91,0,0.25)",
+          background: "#fef3c7",
+          color: "#92400e",
         };
+
       case "COMPLETED":
         return {
-          background: "#eef2ff",
+          background: "#e0e7ff",
           color: "#3730a3",
-          border: "1px solid rgba(55,48,163,0.2)",
         };
-      case "REJECTED":
-      case "CANCELLED":
-        return {
-          background: "#ffe3e3",
-          color: "#9c2a2a",
-          border: "1px solid rgba(156,42,42,0.2)",
-        };
+
       default:
         return {
-          background: "#eef7f7",
-          color: "#0f7f7c",
-          border: "1px solid rgba(15,127,124,0.25)",
+          background: "#e2e8f0",
+          color: "#334155",
         };
     }
   };
 
   const showToast = (message, type = "info") => {
-    setToast({ show: true, message, type });
+    setToast({
+      show: true,
+      message,
+      type,
+    });
 
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (toastTimerRef.current)
+      clearTimeout(toastTimerRef.current);
+
     toastTimerRef.current = setTimeout(() => {
-      setToast((t) => ({ ...t, show: false }));
+      setToast((t) => ({
+        ...t,
+        show: false,
+      }));
     }, 3500);
   };
 
   const loadAppointments = async () => {
     const res = await api.get("/appointments/patient/me");
-    if (res.data.ok) setAppointments(res.data.data || []);
-    else throw new Error(res.data.error || "Failed to load appointments");
+
+    if (res.data.ok) {
+      setAppointments(res.data.data || []);
+    }
   };
 
   const loadReports = async () => {
     const res = await api.get("/reports/patient/me");
-    if (res.data.ok) setReports(res.data.data || []);
-    else throw new Error(res.data.error || "Failed to load reports");
-  };
 
-  const downloadReport = async (reportId) => {
-    try {
-      const res = await api.get(`/reports/${reportId}/download`, {
-        responseType: "blob",
-      });
-
-      const blob = new Blob([res.data], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `report_${reportId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      window.URL.revokeObjectURL(url);
-
-      showToast(`Report #${reportId} downloaded ✅`, "success");
-    } catch (e) {
-      console.error("download report error:", e);
-      const msg = e.response?.data?.error || e.message || "Download failed";
-      showToast(msg, "error");
-      alert(msg);
-    }
-  };
-
-  // ── Prescription verification ──────────────────────────────────
-  const verifyPrescription = async (reportId) => {
-    setPrescriptionLoading((prev) => ({ ...prev, [reportId]: true }));
-    try {
-      const res = await api.get(`/reports/${reportId}/prescription`);
-      if (res.data.ok) {
-        setPrescriptionResults((prev) => ({
-          ...prev,
-          [reportId]: res.data,
-        }));
-      } else {
-        showToast("Prescription not found on blockchain", "error");
-      }
-    } catch (e) {
-      showToast(
-        e.response?.data?.error || "Could not verify prescription",
-        "error"
-      );
-    } finally {
-      setPrescriptionLoading((prev) => ({ ...prev, [reportId]: false }));
+    if (res.data.ok) {
+      setReports(res.data.data || []);
     }
   };
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
-      setErrMsg("");
       try {
-        await Promise.all([loadAppointments(), loadReports()]);
+        setLoading(true);
+
+        await Promise.all([
+          loadAppointments(),
+          loadReports(),
+        ]);
       } catch (e) {
-        console.error(e);
-        setErrMsg(e.response?.data?.error || e.message || "Something went wrong");
+        setErrMsg(
+          e.response?.data?.error ||
+            "Failed to load dashboard"
+        );
       } finally {
         setLoading(false);
       }
@@ -176,43 +138,45 @@ export default function PatientDashboard() {
 
     if (!socket) return;
 
-    socket.emit("join", { userId: user.id });
+    socket.emit("join", {
+      userId: user.id,
+    });
 
-    const onStatus = (payload) => {
-      loadAppointments().catch(console.error);
-      showToast(`Appointment updated: ${payload?.status || "changed"}`, "info");
+    const onStatus = () => {
+      loadAppointments();
     };
 
-    const onReport = (payload) => {
-      loadReports().catch(console.error);
+    const onReport = () => {
+      loadReports();
+
       showToast(
-        `New report is ready ✅ ${payload?.reportId ? `(Report #${payload.reportId})` : ""}`,
+        "New report available ✅",
         "success"
       );
     };
 
-    socket.on("appointment_status", onStatus);
-    socket.on("report_ready", onReport);
+    socket.on(
+      "appointment_status",
+      onStatus
+    );
+
+    socket.on(
+      "report_ready",
+      onReport
+    );
 
     return () => {
-      socket.off("appointment_status", onStatus);
-      socket.off("report_ready", onReport);
+      socket.off(
+        "appointment_status",
+        onStatus
+      );
+
+      socket.off(
+        "report_ready",
+        onReport
+      );
     };
   }, [user?.id]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAppointments((prev) => [...prev]);
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
 
   return (
     <div>
@@ -222,154 +186,170 @@ export default function PatientDashboard() {
         <div
           style={{
             position: "fixed",
-            top: 16,
-            right: 16,
+            top: 20,
+            right: 20,
             zIndex: 9999,
-            padding: "12px 14px",
-            borderRadius: 12,
-            fontWeight: 900,
-            boxShadow: "0 8px 22px rgba(0,0,0,0.12)",
             background:
               toast.type === "success"
-                ? "#dff7e6"
-                : toast.type === "error"
-                ? "#ffe3e3"
-                : "#eef7f7",
+                ? "#dcfce7"
+                : "#fff",
             color:
               toast.type === "success"
-                ? "#1b7a3c"
-                : toast.type === "error"
-                ? "#9c2a2a"
-                : "#0f7f7c",
-            border:
-              toast.type === "success"
-                ? "1px solid rgba(27,122,60,0.25)"
-                : toast.type === "error"
-                ? "1px solid rgba(156,42,42,0.25)"
-                : "1px solid rgba(15,127,124,0.25)",
-            maxWidth: 360,
-            cursor: "pointer",
+                ? "#166534"
+                : "#111",
+            padding: "14px 18px",
+            borderRadius: 14,
+            fontWeight: "700",
+            boxShadow:
+              "0 10px 30px rgba(0,0,0,0.08)",
           }}
-          onClick={() => setToast((t) => ({ ...t, show: false }))}
-          title="Click to dismiss"
         >
           {toast.message}
         </div>
       )}
 
       <main style={styles.page}>
-        <div style={styles.headerRow}>
-          <div>
-            <h1 style={{ margin: 0 }}>Patient Dashboard</h1>
-            <p style={styles.sub}>
-              Manage your appointments, view reports, and book a doctor.
+        {/* HERO */}
+        <section style={styles.hero}>
+          <div style={styles.heroLeft}>
+            <div style={styles.heroTag}>
+              Trusted Digital Healthcare
+            </div>
+
+            <h1 style={styles.heroTitle}>
+              Welcome back,
+              <br />
+              {user?.fullName || "Patient"}
+            </h1>
+
+            <p style={styles.heroText}>
+              Manage appointments,
+              download reports,
+              verify blockchain
+              prescriptions, and connect
+              with doctors securely from
+              one place.
             </p>
+
+            <div style={styles.heroButtons}>
+              <Link
+                to="/find-doctor"
+                style={styles.primaryBtn}
+              >
+                + Book Appointment
+              </Link>
+
+              <Link
+                to="/reports"
+                style={styles.secondaryBtn}
+              >
+                View Reports
+              </Link>
+            </div>
           </div>
 
-          <Link to="/find-doctor" style={styles.primaryBtn}>
-            + Book New Appointment
-          </Link>
-        </div>
+          <div style={styles.heroCard}>
+            <div style={styles.heroMiniCard}>
+              <div style={styles.heroMiniNumber}>
+                {appointments.length}
+              </div>
 
-        {errMsg && (
-          <div style={{ marginTop: 12, color: "crimson", fontWeight: 800 }}>
-            Error: {errMsg}
-          </div>
-        )}
+              <div style={styles.heroMiniLabel}>
+                Appointments
+              </div>
+            </div>
 
-        <section style={styles.statsGrid}>
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Appointments</div>
-            <div style={styles.statValue}>{appointments.length}</div>
-          </div>
+            <div style={styles.heroMiniCard}>
+              <div style={styles.heroMiniNumber}>
+                {reports.length}
+              </div>
 
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Reports</div>
-            <div style={styles.statValue}>{reports.length}</div>
-          </div>
+              <div style={styles.heroMiniLabel}>
+                Reports
+              </div>
+            </div>
 
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Account</div>
-            <div style={styles.statValueSmall}>Active</div>
+            <div style={styles.heroMiniCard}>
+              <div style={styles.heroMiniNumber}>
+                Active
+              </div>
+
+              <div style={styles.heroMiniLabel}>
+                Account Status
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* ── Appointments ── */}
+        {/* APPOINTMENTS */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
-            <h2 style={{ margin: 0 }}>Appointments</h2>
-            <Link to="/appointments" style={styles.linkBtn}>
+            <h2 style={{ margin: 0 }}>
+              Upcoming Appointments
+            </h2>
+
+            <Link
+              to="/appointments"
+              style={styles.linkBtn}
+            >
               View All
             </Link>
           </div>
 
           {loading ? (
-            <p style={styles.empty}>Loading appointments...</p>
+            <p>Loading appointments...</p>
           ) : appointments.length === 0 ? (
-            <p style={styles.empty}>No appointments found.</p>
+            <p>No appointments yet.</p>
           ) : (
             appointments.map((a) => (
-              <div key={a.id} style={styles.rowCard}>
+              <div
+                key={a.id}
+                style={styles.rowCard}
+              >
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>{a.doctorName}</b> <span style={styles.dot}>•</span>
-                    <span style={styles.muted}>{a.specialty}</span>
+                    <b>{a.doctorName}</b>
+
+                    <span style={styles.dot}>
+                      •
+                    </span>
+
+                    <span style={styles.muted}>
+                      {a.specialty}
+                    </span>
                   </div>
 
                   <div style={styles.muted}>
-                    {a.requestedStart
-                      ? new Date(a.requestedStart).toLocaleString()
-                      : "No time"}
-                    {" • "}
-                    {a.appointmentType}
+                    {new Date(
+                      a.requestedStart
+                    ).toLocaleString()}
                   </div>
 
-                  {a.patientNote && (
-                    <div style={styles.noteBox}>
-                      <b>Your note:</b> {a.patientNote}
-                    </div>
-                  )}
-
-                  {a.status === "REQUESTED" && (
-                    <div style={styles.infoText}>
-                      Waiting for doctor confirmation.
-                    </div>
-                  )}
-
-                  {a.appointmentType === "VIDEO" &&
-                    a.status === "CONFIRMED" &&
-                    !canJoinVideoCall(a) && (
-                      <div style={styles.infoText}>
-                        Video call will be available 1 minute before appointment time.
-                      </div>
+                  {a.appointmentType ===
+                    "VIDEO" &&
+                    a.status ===
+                      "CONFIRMED" &&
+                    canJoinVideoCall(a) && (
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/video-call/${a.id}`
+                          )
+                        }
+                        style={styles.joinBtn}
+                      >
+                        📹 Join Video Call
+                      </button>
                     )}
-
-                  {canJoinVideoCall(a) && (
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/video-call/${a.id}`)}
-                      style={styles.joinBtn}
-                    >
-                      📹 Join Video Call
-                    </button>
-                  )}
-
-                  {a.status === "COMPLETED" && (
-                    <button
-                      type="button"
-                      onClick={() => navigate("/reports")}
-                      style={styles.reportBtn}
-                    >
-                      📄 View Report
-                    </button>
-                  )}
                 </div>
 
                 <div style={styles.right}>
                   <span
                     style={{
                       ...styles.badge,
-                      ...getStatusBadgeStyle(a.status),
+                      ...getStatusBadgeStyle(
+                        a.status
+                      ),
                     }}
                   >
                     {a.status}
@@ -380,90 +360,63 @@ export default function PatientDashboard() {
           )}
         </section>
 
-        {/* ── Reports + Prescription Verification ── */}
+        {/* REPORTS */}
         <section style={styles.card}>
           <div style={styles.cardTitle}>
-            <h2 style={{ margin: 0 }}>Reports</h2>
-            <Link to="/reports" style={styles.linkBtn}>
+            <h2 style={{ margin: 0 }}>
+              Medical Reports
+            </h2>
+
+            <Link
+              to="/reports"
+              style={styles.linkBtn}
+            >
               View All
             </Link>
           </div>
 
           {loading ? (
-            <p style={styles.empty}>Loading reports...</p>
+            <p>Loading reports...</p>
           ) : reports.length === 0 ? (
-            <p style={styles.empty}>No reports yet.</p>
+            <p>No reports found.</p>
           ) : (
             reports.map((r) => (
-              <div key={r.id} style={styles.rowCard}>
+              <div
+                key={r.id}
+                style={styles.rowCard}
+              >
                 <div style={styles.left}>
                   <div style={styles.rowMain}>
-                    <b>Report #{r.id}</b> <span style={styles.dot}>•</span>
-                    <span style={styles.muted}>{r.doctorName}</span>
-                  </div>
-                  <div style={styles.muted}>
-                    {r.createdAt
-                      ? new Date(r.createdAt).toLocaleDateString()
-                      : "No date"}
+                    <b>Report #{r.id}</b>
+
+                    <span style={styles.dot}>
+                      •
+                    </span>
+
+                    <span style={styles.muted}>
+                      {r.doctorName}
+                    </span>
                   </div>
 
-                  {/* Prescription verification result */}
-                  {prescriptionResults[r.id] && (
-                    <div style={styles.prescriptionBox}>
-                      <div style={{ fontWeight: 900, marginBottom: 4 }}>
-                        ⛓️ Prescription on Blockchain
-                      </div>
-                      <div style={{ fontSize: 12, color: "#555" }}>
-                        Hash: {prescriptionResults[r.id].prescriptionHash?.slice(0, 20)}...
-                      </div>
-                      <div style={{ fontSize: 12, color: "#555" }}>
-                        Issued:{" "}
-                        {new Date(
-                          prescriptionResults[r.id].timestamp * 1000
-                        ).toLocaleString()}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 6,
-                          fontWeight: 900,
-                          color: prescriptionResults[r.id].isValid
-                            ? "#1b7a3c"
-                            : "#9c2a2a",
-                        }}
-                      >
-                        {prescriptionResults[r.id].isValid
-                          ? "✅ Prescription is VALID"
-                          : "❌ Prescription has been INVALIDATED"}
-                      </div>
-                    </div>
-                  )}
+                  <div style={styles.muted}>
+                    {new Date(
+                      r.createdAt
+                    ).toLocaleDateString()}
+                  </div>
                 </div>
 
                 <div style={styles.right}>
-                  <span style={r.pdfHash ? styles.verified : styles.pending}>
-                    {r.pdfHash ? "Verified ✅" : "Pending ⏳"}
+                  <span
+                    style={
+                      r.pdfHash
+                        ? styles.verified
+                        : styles.pending
+                    }
+                  >
+                    {r.pdfHash
+                      ? "Verified ✅"
+                      : "Pending"}
                   </span>
-
-                  <button
-                    type="button"
-                    style={styles.outlineBtn}
-                    disabled={!r.pdfUrl}
-                    onClick={() => downloadReport(r.id)}
-                  >
-                    Download PDF
-                  </button>
-
-                  {/* Prescription verify button */}
-                  <button
-                    type="button"
-                    style={styles.prescriptionBtn}
-                    disabled={prescriptionLoading[r.id]}
-                    onClick={() => verifyPrescription(r.id)}
-                  >
-                    {prescriptionLoading[r.id]
-                      ? "Checking..."
-                      : "💊 Verify Prescription"}
-                  </button>
                 </div>
               </div>
             ))
@@ -472,9 +425,11 @@ export default function PatientDashboard() {
 
         <ChatBot />
 
-        <div style={styles.note}>
-          <b>Reminder:</b> This platform provides guidance only and does not give medical diagnosis.
-        </div>
+        {errMsg && (
+          <div style={styles.errorBox}>
+            {errMsg}
+          </div>
+        )}
       </main>
 
       <Footer />
@@ -483,172 +438,218 @@ export default function PatientDashboard() {
 }
 
 const styles = {
-  page: { maxWidth: 1100, margin: "0 auto", padding: 24 },
-  headerRow: {
-    display: "flex",
+  page: {
+    maxWidth: 1400,
+    margin: "0 auto",
+    padding: "30px",
+  },
+
+  hero: {
+    background:
+      "linear-gradient(135deg,#ecfeff,#f8fafc)",
+    borderRadius: 32,
+    padding: "50px",
+    display: "grid",
+    gridTemplateColumns:
+      "1.2fr 420px",
+    gap: "40px",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    marginBottom: "30px",
+  },
+
+  heroLeft: {},
+
+  heroTag: {
+    display: "inline-block",
+    background:
+      "rgba(15,127,124,0.12)",
+    color: "#0f7f7c",
+    padding: "10px 18px",
+    borderRadius: "999px",
+    fontWeight: "900",
+    fontSize: "14px",
+    marginBottom: "20px",
+  },
+
+  heroTitle: {
+    fontSize: "68px",
+    lineHeight: "1.05",
+    fontWeight: "900",
+    color: "#0f172a",
+    marginBottom: "20px",
+  },
+
+  heroText: {
+    fontSize: "18px",
+    lineHeight: "1.8",
+    color: "#475569",
+    maxWidth: "700px",
+  },
+
+  heroButtons: {
+    display: "flex",
+    gap: "14px",
+    marginTop: "30px",
     flexWrap: "wrap",
   },
-  sub: { marginTop: 6, opacity: 0.8 },
+
   primaryBtn: {
     textDecoration: "none",
-    background: "#0f7f7c",
+    background:
+      "linear-gradient(135deg,#0f766e,#14b8a6)",
     color: "#fff",
-    padding: "10px 14px",
-    borderRadius: 10,
-    fontWeight: 900,
+    padding: "14px 22px",
+    borderRadius: 16,
+    fontWeight: "900",
+    boxShadow:
+      "0 12px 24px rgba(15,118,110,0.25)",
   },
 
-  statsGrid: {
-    marginTop: 16,
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-  },
-  statCard: {
+  secondaryBtn: {
+    textDecoration: "none",
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
+    color: "#0f172a",
+    padding: "14px 22px",
+    borderRadius: 16,
+    fontWeight: "900",
+    border: "1px solid #dbe2ea",
   },
-  statLabel: { fontSize: 12, opacity: 0.75, fontWeight: 900, marginBottom: 6 },
-  statValue: { fontSize: 34, fontWeight: 900, color: "#0f7f7c" },
-  statValueSmall: { fontSize: 18, fontWeight: 900, color: "#0f7f7c" },
+
+  heroCard: {
+    background: "#fff",
+    borderRadius: "28px",
+    padding: "28px",
+    display: "grid",
+    gap: "18px",
+    boxShadow:
+      "0 20px 40px rgba(0,0,0,0.06)",
+  },
+
+  heroMiniCard: {
+    background: "#f8fafc",
+    borderRadius: "20px",
+    padding: "22px",
+  },
+
+  heroMiniNumber: {
+    fontSize: "42px",
+    fontWeight: "900",
+    color: "#0f7f7c",
+    marginBottom: "6px",
+  },
+
+  heroMiniLabel: {
+    color: "#64748b",
+    fontWeight: "700",
+  },
 
   card: {
-    marginTop: 16,
+    marginTop: 24,
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
+    border:
+      "1px solid rgba(0,0,0,0.05)",
+    borderRadius: 28,
+    padding: 28,
+    boxShadow:
+      "0 14px 40px rgba(0,0,0,0.05)",
   },
+
   cardTitle: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 18,
   },
-  linkBtn: { textDecoration: "none", color: "#0f7f7c", fontWeight: 900 },
+
+  linkBtn: {
+    color: "#0f7f7c",
+    fontWeight: "900",
+    textDecoration: "none",
+  },
 
   rowCard: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     alignItems: "flex-start",
-    gap: 12,
-    padding: 12,
-    borderRadius: 12,
-    border: "1px solid rgba(0,0,0,0.06)",
-    marginTop: 10,
+    gap: 16,
+    padding: 22,
+    borderRadius: 24,
+    background: "#f8fafc",
+    border:
+      "1px solid rgba(0,0,0,0.05)",
+    marginTop: 18,
     flexWrap: "wrap",
   },
-  left: { minWidth: 260, flex: 1 },
-  right: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
-  rowMain: { fontSize: 14 },
-  muted: { opacity: 0.75, fontSize: 13 },
-  dot: { margin: "0 6px", opacity: 0.5 },
+
+  left: {
+    minWidth: 260,
+    flex: 1,
+  },
+
+  right: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
+  rowMain: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+
+  muted: {
+    color: "#64748b",
+    fontSize: 14,
+  },
+
+  dot: {
+    margin: "0 8px",
+  },
 
   badge: {
-    fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-  },
-
-  noteBox: {
-    marginTop: 8,
-    background: "#f9f9f9",
-    borderRadius: 10,
-    padding: "8px 10px",
+    padding: "8px 14px",
+    borderRadius: "999px",
+    fontWeight: "800",
     fontSize: 13,
-    color: "#555",
-  },
-
-  prescriptionBox: {
-    marginTop: 10,
-    background: "#f0fdf4",
-    border: "1px solid rgba(27,122,60,0.2)",
-    borderRadius: 10,
-    padding: "10px 12px",
-    fontSize: 13,
-  },
-
-  infoText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#666",
-    fontWeight: 600,
   },
 
   joinBtn: {
-    marginTop: 10,
-    padding: "10px 14px",
+    marginTop: 14,
     border: "none",
-    borderRadius: 10,
-    background: "#0f7f7c",
+    background:
+      "linear-gradient(135deg,#0f766e,#14b8a6)",
     color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  reportBtn: {
-    marginTop: 10,
-    marginLeft: 10,
-    padding: "10px 14px",
-    border: "none",
-    borderRadius: 10,
-    background: "#6366f1",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  outlineBtn: {
-    border: "1px solid #0f7f7c",
-    background: "#fff",
-    color: "#0f7f7c",
-    borderRadius: 10,
-    padding: "8px 12px",
-    fontWeight: 900,
-    cursor: "pointer",
-    textDecoration: "none",
-  },
-
-  prescriptionBtn: {
-    border: "1px solid #7c3aed",
-    background: "#fff",
-    color: "#7c3aed",
-    borderRadius: 10,
-    padding: "8px 12px",
-    fontWeight: 900,
+    padding: "12px 18px",
+    borderRadius: 14,
+    fontWeight: "800",
     cursor: "pointer",
   },
 
   verified: {
-    fontSize: 12,
-    fontWeight: 900,
-    color: "#1b7a3c",
-    background: "#dff7e6",
-    padding: "6px 10px",
-    borderRadius: 999,
-  },
-  pending: {
-    fontSize: 12,
-    fontWeight: 900,
-    color: "#8a5b00",
-    background: "#fff3cd",
-    padding: "6px 10px",
-    borderRadius: 999,
+    background: "#dcfce7",
+    color: "#166534",
+    padding: "8px 14px",
+    borderRadius: "999px",
+    fontWeight: "800",
   },
 
-  empty: { opacity: 0.75 },
-  note: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 12,
-    background: "#fff7e6",
-    border: "1px solid rgba(255, 153, 0, 0.35)",
-    lineHeight: 1.5,
+  pending: {
+    background: "#fef3c7",
+    color: "#92400e",
+    padding: "8px 14px",
+    borderRadius: "999px",
+    fontWeight: "800",
+  },
+
+  errorBox: {
+    marginTop: 20,
+    background: "#fee2e2",
+    color: "#991b1b",
+    padding: 14,
+    borderRadius: 14,
+    fontWeight: "700",
   },
 };

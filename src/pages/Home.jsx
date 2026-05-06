@@ -10,22 +10,25 @@ export default function Home() {
       <main style={styles.main}>
         <section style={styles.hero}>
           <div style={styles.heroTextWrap}>
-            <div style={styles.heroTag}>Trusted Digital Healthcare Platform</div>
+            <div style={styles.heroTag}>
+              Trusted Digital Healthcare Platform
+            </div>
 
             <h1 style={styles.h1}>
               Providing Quality Healthcare for a Brighter and Healthy Future
             </h1>
 
             <p style={styles.p}>
-              OneStep HealthCare helps patients enter symptoms in simple language,
-              then recommends suitable doctors based on availability, experience,
-              and ratings.
+              OneStep HealthCare helps patients enter symptoms in simple
+              language, then recommends suitable doctors based on availability,
+              experience, and ratings.
             </p>
 
             <div style={styles.actions}>
               <Link to="/find-doctor" style={styles.primaryBtn}>
                 Find a Doctor
               </Link>
+
               <Link to="/register" style={styles.secondaryBtn}>
                 Sign Up
               </Link>
@@ -43,8 +46,12 @@ export default function Home() {
 
             <div style={styles.heroImageWrap}>
               <div style={styles.heroIconCircle}>👩‍⚕️</div>
+
               <div style={styles.heroImageContent}>
-                <div style={styles.heroImageTitle}>Online Consultation</div>
+                <div style={styles.heroImageTitle}>
+                  Online Consultation
+                </div>
+
                 <div style={styles.heroImageText}>
                   Book appointments, connect with doctors, and access reports in
                   one secure place.
@@ -55,28 +62,42 @@ export default function Home() {
             <div style={styles.heroBottomCards}>
               <div style={styles.smallInfoCard}>
                 <div style={styles.smallInfoIcon}>🩺</div>
+
                 <div>
-                  <div style={styles.smallInfoTitle}>Verified Doctors</div>
-                  <div style={styles.smallInfoText}>Experienced specialists</div>
+                  <div style={styles.smallInfoTitle}>
+                    Verified Doctors
+                  </div>
+
+                  <div style={styles.smallInfoText}>
+                    Experienced specialists
+                  </div>
                 </div>
               </div>
 
               <div style={styles.smallInfoCard}>
                 <div style={styles.smallInfoIcon}>📄</div>
+
                 <div>
-                  <div style={styles.smallInfoTitle}>Medical Reports</div>
-                  <div style={styles.smallInfoText}>Download PDF anytime</div>
+                  <div style={styles.smallInfoTitle}>
+                    Medical Reports
+                  </div>
+
+                  <div style={styles.smallInfoText}>
+                    Download PDF anytime
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
+        {/* FIND BAR */}
         <section style={styles.findBar}>
           <div style={styles.findTitle}>Find A Doctor</div>
 
           <div style={styles.findRow}>
             <input style={styles.input} placeholder="Name" />
+
             <input style={styles.input} placeholder="Specialty" />
 
             <label style={styles.toggleWrap}>
@@ -90,50 +111,161 @@ export default function Home() {
           </div>
         </section>
 
+        {/* STATS */}
         <section style={styles.stats}>
-          <Stat value="99%" label="Customer satisfaction" icon="⭐" />
-          <Stat value="15k" label="Online Patients" icon="🧑‍🤝‍🧑" />
-          <Stat value="12k" label="Patients Recovered" icon="💚" />
-          <Stat value="240%" label="Company growth" icon="📈" />
+          <Stat
+            value="99%"
+            label="Customer satisfaction"
+            icon="⭐"
+          />
+
+          <Stat
+            value="15k"
+            label="Online Patients"
+            icon="🧑‍🤝‍🧑"
+          />
+
+          <Stat
+            value="12k"
+            label="Patients Recovered"
+            icon="💚"
+          />
+
+          <Stat
+            value="240%"
+            label="Company growth"
+            icon="📈"
+          />
         </section>
 
+        {/* REAL FEATURES */}
         <section style={styles.section}>
-          <h2 style={styles.h2}>Services we provide</h2>
-          <p style={styles.p2}>
-            Explore the most common services. (UI-only for now)
-          </p>
+          <div style={styles.featureHeader}>
+            <div>
+              <h2 style={styles.h2}>
+                Smart Healthcare Features
+              </h2>
 
-          <div style={styles.cards}>
-            <ServiceCard
-              title="Dental treatments"
-              icon="🦷"
-              desc="Professional dental care and oral health consultation."
-            />
-            <ServiceCard
-              title="Cardiology"
-              icon="❤️"
-              desc="Heart care support with specialist consultation."
-            />
-            <ServiceCard
-              title="Surgery"
-              icon="🏥"
-              desc="Guidance and support for surgical appointments."
-            />
-            <ServiceCard
-              title="Eye Care"
-              icon="👁️"
-              desc="Vision-related consultation and eye health support."
-            />
-            <ServiceCard
-              title="Diagnosis"
-              icon="🧪"
-              desc="Find the right doctor based on your symptoms."
-            />
-            <ServiceCard
-              title="Bone treatments"
-              icon="🦴"
-              desc="Orthopedic care for bones, joints, and mobility."
-            />
+              <p style={styles.p2}>
+                Secure healthcare management platform with blockchain-powered
+                prescription verification.
+              </p>
+            </div>
+
+            <Link to="/register" style={styles.exploreBtn}>
+              Explore Platform
+            </Link>
+          </div>
+
+          <div style={styles.featureGrid}>
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>🩺</div>
+
+              <h3 style={styles.featureTitle}>
+                Doctor Matching
+              </h3>
+
+              <p style={styles.featureText}>
+                Find verified doctors based on specialization, ratings, and
+                availability.
+              </p>
+
+              <Link
+                to="/find-doctor"
+                style={styles.featureLink}
+              >
+                Find Doctors →
+              </Link>
+            </div>
+
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>📅</div>
+
+              <h3 style={styles.featureTitle}>
+                Appointment Booking
+              </h3>
+
+              <p style={styles.featureText}>
+                Book appointments instantly and manage schedules in real time.
+              </p>
+
+              <Link
+                to="/appointments"
+                style={styles.featureLink}
+              >
+                View Appointments →
+              </Link>
+            </div>
+
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>💻</div>
+
+              <h3 style={styles.featureTitle}>
+                Video Consultation
+              </h3>
+
+              <p style={styles.featureText}>
+                Secure online consultation system integrated directly into the
+                platform.
+              </p>
+
+              <Link to="/login" style={styles.featureLink}>
+                Start Consultation →
+              </Link>
+            </div>
+
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>📄</div>
+
+              <h3 style={styles.featureTitle}>
+                Medical Reports
+              </h3>
+
+              <p style={styles.featureText}>
+                Doctors can generate downloadable patient reports securely.
+              </p>
+
+              <Link to="/reports" style={styles.featureLink}>
+                View Reports →
+              </Link>
+            </div>
+
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>⛓️</div>
+
+              <h3 style={styles.featureTitle}>
+                Blockchain Prescription
+              </h3>
+
+              <p style={styles.featureText}>
+                Tamper-proof prescription verification for secure medicine
+                dispensing.
+              </p>
+
+              <Link
+                to="/pharmacy/dashboard"
+                style={styles.featureLink}
+              >
+                Open Pharmacy →
+              </Link>
+            </div>
+
+            <div style={styles.featureCard}>
+              <div style={styles.featureIcon}>🔐</div>
+
+              <h3 style={styles.featureTitle}>
+                Secure Authentication
+              </h3>
+
+              <p style={styles.featureText}>
+                Role-based access for patients, doctors, admins, and
+                pharmacists.
+              </p>
+
+              <Link to="/login" style={styles.featureLink}>
+                Login Securely →
+              </Link>
+            </div>
           </div>
         </section>
       </main>
@@ -158,28 +290,18 @@ function Stat({ value, label, icon }) {
       <div style={styles.statTopRow}>
         <div style={styles.statIcon}>{icon}</div>
       </div>
-      <div style={styles.statValue}>{value}</div>
-      <div style={styles.statLabel}>{label}</div>
-    </div>
-  );
-}
 
-function ServiceCard({ title, icon, desc }) {
-  return (
-    <div style={styles.card}>
-      <div style={styles.cardImg}>
-        <span style={styles.cardIcon}>{icon}</span>
-      </div>
-      <div style={{ fontWeight: 900, marginTop: 12, fontSize: 16 }}>{title}</div>
-      <div style={styles.cardText}>{desc}</div>
-      <div style={styles.cardLink}>Learn more →</div>
+      <div style={styles.statValue}>{value}</div>
+
+      <div style={styles.statLabel}>{label}</div>
     </div>
   );
 }
 
 const styles = {
   page: {
-    background: "linear-gradient(180deg, #f7fffe 0%, #ffffff 30%, #f8fafc 100%)",
+    background:
+      "linear-gradient(180deg, #f7fffe 0%, #ffffff 30%, #f8fafc 100%)",
     minHeight: "100vh",
   },
 
@@ -285,7 +407,8 @@ const styles = {
   },
 
   heroCard: {
-    background: "linear-gradient(135deg, #dff8f6 0%, #eef7ff 100%)",
+    background:
+      "linear-gradient(135deg, #dff8f6 0%, #eef7ff 100%)",
     borderRadius: 28,
     padding: 18,
     position: "relative",
@@ -318,19 +441,17 @@ const styles = {
     justifyContent: "center",
     textAlign: "center",
     padding: 20,
-    border: "1px solid rgba(0,0,0,0.05)",
   },
 
   heroIconCircle: {
     width: 92,
     height: 92,
     borderRadius: "50%",
-    background: "linear-gradient(135deg, #0f7f7c 0%, #34d399 100%)",
+    background:
+      "linear-gradient(135deg, #0f7f7c 0%, #34d399 100%)",
     display: "grid",
     placeItems: "center",
     fontSize: 42,
-    color: "#fff",
-    boxShadow: "0 14px 26px rgba(15,127,124,0.18)",
   },
 
   heroImageContent: {
@@ -365,7 +486,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    border: "1px solid rgba(0,0,0,0.05)",
   },
 
   smallInfoIcon: {
@@ -391,11 +511,11 @@ const styles = {
   },
 
   findBar: {
-    background: "linear-gradient(135deg, #eef2ff 0%, #ecfeff 100%)",
+    background:
+      "linear-gradient(135deg, #eef2ff 0%, #ecfeff 100%)",
     borderRadius: 20,
     padding: 18,
-    border: "1px solid rgba(0,0,0,0.06)",
-    boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
+    marginTop: 30,
   },
 
   findTitle: {
@@ -432,7 +552,6 @@ const styles = {
     background: "#fff",
     padding: "12px 14px",
     borderRadius: 14,
-    border: "1px solid rgba(0,0,0,0.10)",
   },
 
   searchBtn: {
@@ -442,13 +561,13 @@ const styles = {
     padding: "12px 16px",
     borderRadius: 14,
     fontWeight: 900,
-    boxShadow: "0 10px 24px rgba(15,127,124,0.16)",
   },
 
   stats: {
     marginTop: 18,
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(190px, 1fr))",
     gap: 14,
   },
 
@@ -456,8 +575,6 @@ const styles = {
     background: "#fff",
     borderRadius: 20,
     padding: 18,
-    border: "1px solid rgba(0,0,0,0.06)",
-    boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
   },
 
   statTopRow: {
@@ -490,59 +607,88 @@ const styles = {
   },
 
   section: {
-    marginTop: 28,
+    marginTop: 70,
   },
 
   h2: {
     margin: "0 0 8px 0",
-    fontSize: 28,
+    fontSize: 36,
     color: "#0f172a",
   },
 
   p2: {
     margin: "0 0 16px 0",
     color: "#64748b",
+    fontSize: 16,
+    lineHeight: 1.8,
+  },
+
+  featureHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+    flexWrap: "wrap",
+    gap: 16,
+  },
+
+  exploreBtn: {
+    textDecoration: "none",
+    background:
+      "linear-gradient(135deg, #0f7f7c 0%, #14b8a6 100%)",
+    color: "#fff",
+    padding: "14px 20px",
+    borderRadius: 14,
+    fontWeight: 900,
+  },
+
+  featureGrid: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 20,
+  },
+
+  featureCard: {
+    background: "#fff",
+    borderRadius: 24,
+    padding: 26,
+    border: "1px solid rgba(0,0,0,0.06)",
+    boxShadow: "0 14px 32px rgba(15,23,42,0.05)",
+  },
+
+  featureIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 18,
+    background:
+      "linear-gradient(135deg, rgba(15,127,124,0.12) 0%, rgba(59,130,246,0.10) 100%)",
+    display: "grid",
+    placeItems: "center",
+    fontSize: 32,
+    marginBottom: 20,
+  },
+
+  featureTitle: {
+    margin: 0,
+    fontSize: 22,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+
+  featureText: {
+    marginTop: 12,
+    color: "#64748b",
+    lineHeight: 1.8,
     fontSize: 15,
   },
 
-  cards: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: 14,
-  },
-
-  card: {
-    background: "#fff",
-    borderRadius: 20,
-    padding: 16,
-    border: "1px solid rgba(0,0,0,0.06)",
-    boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
-    transition: "0.2s ease",
-  },
-
-  cardImg: {
-    height: 120,
-    borderRadius: 16,
-    background: "linear-gradient(135deg, #ecfeff 0%, #eef2ff 100%)",
-    display: "grid",
-    placeItems: "center",
-  },
-
-  cardIcon: {
-    fontSize: 42,
-  },
-
-  cardText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#555",
-    lineHeight: 1.7,
-  },
-
-  cardLink: {
-    marginTop: 12,
-    fontWeight: 900,
+  featureLink: {
+    display: "inline-block",
+    marginTop: 18,
+    textDecoration: "none",
     color: "#0f7f7c",
-    fontSize: 13,
+    fontWeight: 900,
+    fontSize: 14,
   },
 };

@@ -29,6 +29,8 @@ export default function DoctorDashboard() {
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
 
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -39,7 +41,7 @@ export default function DoctorDashboard() {
   const [loadingAppts, setLoadingAppts] = useState(false);
   const [apptsErr, setApptsErr] = useState("");
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
-
+const [searchTerm, setSearchTerm] = useState("");
   const selectedAppointment =
     appointments.find((a) => a.id === selectedAppointmentId) || null;
 
@@ -325,8 +327,12 @@ export default function DoctorDashboard() {
               }}
             >
               <div className="doc-search" style={{ flex: 1 }}>
-                <span style={{ opacity: 0.6 }}>🔎</span>
-                <input placeholder="Search (demo)" />
+                <span style={{ opacity: 0.6 }}>🔎</span><input
+  placeholder="Search patient name..."
+  value={searchTerm}
+  onChange={(e) => setSearchTerm(e.target.value)}
+/>
+ <input placeholder="Search patients, appointments..." />
               </div>
 
               <button
@@ -346,7 +352,7 @@ export default function DoctorDashboard() {
             </div>
 
             <div className="doc-greet">
-              Good Morning <span>Dr. {displayName}</span>
+              Welcome Back <span>Dr. {displayName}</span>
             </div>
 
             <section className="doc-hero">
@@ -383,7 +389,13 @@ export default function DoctorDashboard() {
                     No appointments yet.
                   </div>
                 ) : (
-                  appointments.map((a) => {
+                 appointments
+  .filter((a) =>
+    (a.patientName || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  )
+  .map((a) => { 
                     const initials =
                       (a.patientName || "P")
                         .split(" ")
@@ -433,8 +445,20 @@ export default function DoctorDashboard() {
                 <div className="doc-card" style={{ marginBottom: 16 }}>
                   <div className="doc-card-title">
                     <h4>Doctor Profile</h4>
-                    <div className="doc-pill">Profile</div>
-                  </div>
+                    <div className="doc-pill">Profile</div><button
+  onClick={() => setShowEditProfile(!showEditProfile)}
+  style={{
+    padding: "8px 14px",
+    borderRadius: 12,
+    border: "none",
+    background: "#0f7f7c",
+    color: "#fff",
+    fontWeight: 800,
+    cursor: "pointer",
+  }}
+>
+  {showEditProfile ? "Close" : "Edit Profile"}
+</button>                  </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
                     <img
@@ -491,12 +515,12 @@ export default function DoctorDashboard() {
                   </div>
 
                   {loadingProfile ? (
-                    <p style={{ marginTop: 14 }}>Loading profile...</p>
-                  ) : (
-                    <form
-                      onSubmit={saveProfile}
-                      style={{ display: "grid", gap: 10, marginTop: 14 }}
-                    >
+  <p style={{ marginTop: 14 }}>Loading profile...</p>
+) : showEditProfile ? (
+<form
+  onSubmit={saveProfile}
+  style={{ display: "grid", gap: 10, marginTop: 14 }}
+>
                       <input
                         name="specialty"
                         placeholder="Specialty (e.g., General Physician)"
@@ -575,7 +599,9 @@ export default function DoctorDashboard() {
                         </div>
                       )}
                     </form>
-                  )}
+                  ) :null}
+
+
                 </div>
 
                 <div className="doc-card">
