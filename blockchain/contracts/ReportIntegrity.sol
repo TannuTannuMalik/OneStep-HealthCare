@@ -24,18 +24,43 @@ contract ReportIntegrity {
         bytes32 prescriptionHash;
         uint256 timestamp;
         bool isValid;
+           bool isDispensed;      
+    uint256 dispensedAt; 
     }
 
     mapping(uint256 => Prescription) public prescriptions;
 
-    function storePrescription(uint256 reportId, bytes32 prescriptionHash) public {
-        prescriptions[reportId] = Prescription(prescriptionHash, block.timestamp, true);
-    }
+  function storePrescription(uint256 reportId, bytes32 prescriptionHash) public {
+    prescriptions[reportId] = Prescription(
+        prescriptionHash,
+        block.timestamp,
+        true,
+        false,     // not dispensed yet
+        0
+    );
+}
+function dispense(uint256 reportId) public {
+    require(prescriptions[reportId].isValid, "Invalid prescription");
+    require(!prescriptions[reportId].isDispensed, "Already dispensed");
 
-    function verifyPrescription(uint256 reportId) public view returns (bytes32, uint256, bool) {
-        Prescription memory p = prescriptions[reportId];
-        return (p.prescriptionHash, p.timestamp, p.isValid);
-    }
+    prescriptions[reportId].isDispensed = true;
+    prescriptions[reportId].dispensedAt = block.timestamp;
+}
+
+    function verifyPrescription(uint256 reportId)
+    public
+    view
+    returns (bytes32, uint256, bool, bool, uint256)
+{
+    Prescription memory p = prescriptions[reportId];
+    return (
+        p.prescriptionHash,
+        p.timestamp,
+        p.isValid,
+        p.isDispensed,
+        p.dispensedAt
+    );
+}
 
     function invalidatePrescription(uint256 reportId) public {
         prescriptions[reportId].isValid = false;

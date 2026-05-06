@@ -14,8 +14,9 @@ const BLOCKCHAIN_ABI = [
   "function storeProof(uint256 reportId, bytes32 pdfHash) public",
   "function verify(uint256 reportId) public view returns (bytes32, uint256)",
   "function storePrescription(uint256 reportId, bytes32 prescriptionHash) public",
-  "function verifyPrescription(uint256 reportId) public view returns (bytes32, uint256, bool)",
+  "function verifyPrescription(uint256 reportId) public view returns (bytes32, uint256, bool, bool, uint256)",
   "function invalidatePrescription(uint256 reportId) public",
+  "function dispense(uint256 reportId) public",
 ];
 
 function logBlockchainEvent(type, data) {
