@@ -57,16 +57,9 @@ export default function Navbar() {
           </NavItem>
 
           {/* ✅ NEW HEALTH ASSISTANT */}
-          <button
-            onClick={() =>
-              window.dispatchEvent(
-                new Event("open-health-chat")
-              )
-            }
-            style={styles.assistantBtn}
-          >
-            ✨ Health Assistant
-          </button>
+          <Link to="/health-assistant" style={styles.assistantBtn}>
+  ✨ Health Assistant
+</Link>
 
           {/* PATIENT */}
           {isLoggedIn &&
