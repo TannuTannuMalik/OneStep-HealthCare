@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db.js";
-import { authRequired } from "../middleware/auth.js";
+import { authRequired, requireRole } from "../middleware/auth.js";
 import { ethers } from "ethers";
 
 const router = express.Router();
@@ -56,9 +56,55 @@ function logPharmacyEvent(type, data) {
   }
 }
 
+// ─── GET /api/pharmacy/pending ────────────────────────────────────────────────
+// Get all prescriptions that are valid but not yet dispensed
+router.get("/pending", authRequired, requireRole("PHARMACIST"), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+        r.id,
+        r.diagnosis,
+        r.prescription,
+        r.createdAt,
+        r.blockchainTx,
+        pu.fullName AS patientName,
+        du.fullName AS doctorName,
+        d.specialty
+      FROM consultation_reports r
+      JOIN users pu ON r.patientId = pu.id
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users du ON d.userId = du.id
+      WHERE r.blockchainTx IS NOT NULL
+        AND r.prescription IS NOT NULL
+      ORDER BY r.createdAt DESC`
+    );
+
+    const contract = getContract(false);
+    const results = await Promise.all(
+      rows.map(async (row) => {
+        try {
+          const [, , isValid, isDispensed] = await contract.verifyPrescription(row.id);
+          return { ...row, blockchain: { isValid, isDispensed } };
+        } catch {
+          return { ...row, blockchain: null };
+        }
+      })
+    );
+
+    const pending = results.filter(
+      (r) => r.blockchain?.isValid && !r.blockchain?.isDispensed
+    );
+
+    return res.json({ ok: true, total: pending.length, data: pending });
+  } catch (err) {
+    console.error("GET /api/pharmacy/pending error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ─── GET /api/pharmacy/prescription/:reportId ─────────────────────────────────
-// Verify prescription on blockchain — public, no auth needed for pharmacy staff
-router.get("/prescription/:reportId", async (req, res) => {
+// Verify prescription on blockchain — pharmacist must be logged in
+router.get("/prescription/:reportId", authRequired, async (req, res) => {
   try {
     const { reportId } = req.params;
 
