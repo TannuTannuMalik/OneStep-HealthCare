@@ -22,7 +22,7 @@ import CreateReport from "./pages/CreateReport";
 import VideoCall from "./pages/VideoCall";
 import PharmacyDashboard from "./pages/PharmacyDashboard";
 import PharmacyHistory from "./pages/PharmacyHistory";
-
+import HealthAssistant from "./pages/HealthAssistant";
 export default function App() {
   return (
     <BrowserRouter>
@@ -128,7 +128,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
+<Route path="/health-assistant" element={<HealthAssistant />} />
         {/* 404 */}
         <Route
           path="*"
