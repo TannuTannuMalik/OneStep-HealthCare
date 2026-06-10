@@ -22,10 +22,12 @@ import CreateReport from "./pages/CreateReport";
 import VideoCall from "./pages/VideoCall";
 import PharmacyDashboard from "./pages/PharmacyDashboard";
 import PharmacyHistory from "./pages/PharmacyHistory";
+import ChatBot from "./pages/ChatBot";
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ChatBot />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />

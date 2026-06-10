@@ -1,4 +1,5 @@
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 export default function About() {
   return (
@@ -25,6 +26,7 @@ export default function About() {
           Note: This is an academic prototype and does not provide medical diagnoses.
         </p>
       </main>
+      <Footer />
     </div>
   );
 }

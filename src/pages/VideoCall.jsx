@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
 import AgoraRTC from "agora-rtc-sdk-ng";
+import Navbar from "../components/Navbar";
 import "./VideoCall.css";
 
 const FALLBACK_APP_ID = "820bbb9a81444e008d79131d1393e9de";
@@ -204,6 +205,7 @@ export default function VideoCall() {
 
   return (
     <div className="vc-page">
+      <Navbar />
       {/* Top bar */}
       <div className="vc-topbar">
         <span className={`vc-dot ${peerConnected ? "green" : "yellow"}`} />

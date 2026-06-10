@@ -242,6 +242,15 @@ export default function Reports() {
                       <strong>Prescription:</strong> {r.prescription}
                     </div>
                   )}
+                  {r.prescription && hasBlockchain && (
+                    <div style={styles.rxBox}>
+                      <span style={{ fontWeight: 800 }}>🏥 Pharmacy Code: </span>
+                      <span style={styles.rxCode}>RX-2026-{r.id}</span>
+                      <span style={{ color: "#64748b", fontSize: 12, marginLeft: 8 }}>
+                        — give this code to your pharmacist
+                      </span>
+                    </div>
+                  )}
                   {r.improvementSuggestions && (
                     <div>
                       <strong>Suggestions:</strong> {r.improvementSuggestions}
@@ -440,6 +449,22 @@ const styles = {
   details: {
     marginTop: 14,
     lineHeight: 1.7,
+  },
+  rxBox: {
+    marginTop: 8,
+    padding: "8px 12px",
+    background: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    borderRadius: 8,
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
+  rxCode: {
+    fontFamily: "monospace",
+    fontWeight: 900,
+    color: "#0f766e",
+    fontSize: 15,
+    letterSpacing: 1,
   },
   verifyBox: {
     marginTop: 14,

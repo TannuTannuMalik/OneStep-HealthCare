@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 import { api } from "../utils/api";
 
 export default function CreateReport() {
@@ -169,6 +170,7 @@ export default function CreateReport() {
           </>
         )}
       </div>
+      <Footer />
     </div>
   );
 }

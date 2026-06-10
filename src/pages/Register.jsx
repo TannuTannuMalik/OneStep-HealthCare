@@ -1,4 +1,5 @@
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
@@ -79,6 +80,7 @@ export default function Register() {
           </p>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

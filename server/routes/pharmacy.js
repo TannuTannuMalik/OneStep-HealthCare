@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db.js";
-import { authRequired } from "../middleware/auth.js";
+import { authRequired, requireRole } from "../middleware/auth.js";
 import { ethers } from "ethers";
 
 const router = express.Router();
@@ -57,8 +57,8 @@ function logPharmacyEvent(type, data) {
 }
 
 // ─── GET /api/pharmacy/prescription/:reportId ─────────────────────────────────
-// Verify prescription on blockchain — public, no auth needed for pharmacy staff
-router.get("/prescription/:reportId", async (req, res) => {
+// Verify prescription on blockchain — requires PHARMACIST role
+router.get("/prescription/:reportId", authRequired, requireRole("PHARMACIST"), async (req, res) => {
   try {
     const { reportId } = req.params;
 
@@ -138,7 +138,7 @@ router.get("/prescription/:reportId", async (req, res) => {
 
 // ─── POST /api/pharmacy/dispense/:reportId ────────────────────────────────────
 // Mark prescription as dispensed on blockchain
-router.post("/dispense/:reportId", authRequired, async (req, res) => {
+router.post("/dispense/:reportId", authRequired, requireRole("PHARMACIST"), async (req, res) => {
   try {
     const { reportId } = req.params;
 
@@ -185,7 +185,7 @@ router.post("/dispense/:reportId", authRequired, async (req, res) => {
 
 // ─── GET /api/pharmacy/history ────────────────────────────────────────────────
 // Get all dispensed prescriptions from DB + blockchain status
-router.get("/history", authRequired, async (req, res) => {
+router.get("/history", authRequired, requireRole("PHARMACIST"), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT

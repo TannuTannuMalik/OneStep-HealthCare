@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import "./DoctorDashboard.css";
 import { api } from "../utils/api";
 import { socket, connectSocket } from "../utils/socket";
+import PaymentStatus from "../components/PaymentStatus";
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
@@ -327,12 +328,12 @@ const [searchTerm, setSearchTerm] = useState("");
               }}
             >
               <div className="doc-search" style={{ flex: 1 }}>
-                <span style={{ opacity: 0.6 }}>🔎</span><input
-  placeholder="Search patient name..."
-  value={searchTerm}
-  onChange={(e) => setSearchTerm(e.target.value)}
-/>
- <input placeholder="Search patients, appointments..." />
+                <span style={{ opacity: 0.6 }}>🔎</span>
+                <input
+                  placeholder="Search patient name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
 
               <button
@@ -417,6 +418,9 @@ const [searchTerm, setSearchTerm] = useState("");
                           <div className="pname">{a.patientName}</div>
                           <div className="psub">
                             {a.appointmentType} • {a.status}
+                          </div>
+                          <div style={{ marginTop: 4 }}>
+                            <PaymentStatus status={a.paymentStatus} fee={a.consultationFee} size="xs" />
                           </div>
                         </div>
 
