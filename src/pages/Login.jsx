@@ -23,7 +23,7 @@ export default function Login() {
     }
 
     else if (backendRole === "PHARMACIST") {
-      navigate("/pharmacy/dashboard");
+      navigate("/pharmacy");
     }
 
     else if (backendRole === "ADMIN") {

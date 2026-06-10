@@ -26,9 +26,10 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
     if (!roles.includes(user.role)) {
       // Redirect to their own dashboard instead of a blank 403
-      if (user.role === "DOCTOR")  return <Navigate to="/doctor"  replace />;
-      if (user.role === "PATIENT") return <Navigate to="/patient" replace />;
-      if (user.role === "ADMIN")   return <Navigate to="/admin"   replace />;
+      if (user.role === "DOCTOR")     return <Navigate to="/doctor"   replace />;
+      if (user.role === "PATIENT")    return <Navigate to="/patient"  replace />;
+      if (user.role === "PHARMACIST") return <Navigate to="/pharmacy" replace />;
+      if (user.role === "ADMIN")      return <Navigate to="/admin"    replace />;
       return <Navigate to="/login" replace />;
     }
   }
