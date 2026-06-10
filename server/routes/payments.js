@@ -1,79 +1,20 @@
-import express from "express";
-import Stripe from "stripe";
-import { pool } from "../db.js";
-import { authRequired } from "../middleware/auth.js";
-
-const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-const CONSULTATION_FEE = 5000; // $50.00 NZD in cents
-
-// ─── POST /api/payments/create-intent ────────────────────────────────────────
-router.post("/create-intent", authRequired, async (req, res) => {
-  try {
-    const { doctorId, appointmentType } = req.body;
-    const patientId = req.user.id;
-
-    // get doctor info
-    const [doctors] = await pool.query(
-      `SELECT d.id, u.fullName, d.specialty
-       FROM doctors d JOIN users u ON d.userId = u.id
-       WHERE d.id = ?`,
-      [doctorId]
-    );
-
-    if (doctors.length === 0) {
-      return res.status(404).json({ ok: false, error: "Doctor not found" });
-    }
-
-    const doctor = doctors[0];
-
-    // create Stripe payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: CONSULTATION_FEE,
-      currency: "nzd",
-      metadata: {
-        patientId: String(patientId),
-        doctorId: String(doctorId),
-        appointmentType: appointmentType || "VIDEO",
-        doctorName: doctor.fullName,
-        specialty: doctor.specialty,
-      },
-      description: `OneStep Healthcare — Consultation with ${doctor.fullName} (${doctor.specialty})`,
-    });
-
-    return res.json({
-      ok: true,
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: CONSULTATION_FEE,
-      currency: "nzd",
-      doctorName: doctor.fullName,
-      specialty: doctor.specialty,
-      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-    });
-  } catch (err) {
-    console.error("POST /api/payments/create-intent error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
 // ─── POST /api/payments/confirm ───────────────────────────────────────────────
 router.post("/confirm", authRequired, async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
+    await connection.beginTransaction();
+
     const { paymentIntentId, appointmentData } = req.body;
 
-    // verify payment with Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    if (paymentIntent.status !== "succeeded") {
+    if (!paymentIntentId || !appointmentData) {
+      await connection.rollback();
       return res.status(400).json({
         ok: false,
-        error: `Payment not completed. Status: ${paymentIntent.status}`,
+        error: "Missing payment information",
       });
     }
 
-    // create appointment after payment confirmed
     const {
       doctorId,
       requestedStart,
@@ -84,24 +25,144 @@ router.post("/confirm", authRequired, async (req, res) => {
 
     const patientId = req.user.id;
 
-   const [result] = await pool.query(
-  `INSERT INTO appointments
-    (patientId, doctorId, requestedStart, requestedEnd, appointmentType, patientNote, status, paymentStatus, stripePaymentId, consultationFee)
-   VALUES (?, ?, ?, ?, ?, ?, 'REQUESTED', 'PAID', ?, ?)`,
-  [
-    patientId,
-    doctorId,
-    requestedStart,
-    requestedEnd,
-    appointmentType,
-    patientNote || null,
-    paymentIntentId,
-    CONSULTATION_FEE / 100,
-  ]
-);
+    // Validate required fields
+    if (!doctorId || !requestedStart || !requestedEnd) {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: "Missing appointment details",
+      });
+    }
 
-    // notify via socket
+    // Prevent booking in the past
+    if (new Date(requestedStart) < new Date()) {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: "Cannot book appointments in the past",
+      });
+    }
+
+    // Verify payment with Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(
+      paymentIntentId
+    );
+
+    if (paymentIntent.status !== "succeeded") {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: `Payment not completed. Status: ${paymentIntent.status}`,
+      });
+    }
+
+    // Prevent duplicate processing
+    const [existingAppointment] = await connection.query(
+      `SELECT id FROM appointments WHERE stripePaymentId = ?`,
+      [paymentIntentId]
+    );
+
+    if (existingAppointment.length > 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        ok: false,
+        error: "Payment already processed",
+      });
+    }
+
+    // Verify doctor exists
+    const [doctorRows] = await connection.query(
+      `
+      SELECT d.id, u.fullName
+      FROM doctors d
+      JOIN users u ON d.userId = u.id
+      WHERE d.id = ?
+      `,
+      [doctorId]
+    );
+
+    if (doctorRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        ok: false,
+        error: "Doctor not found",
+      });
+    }
+
+    // Check overlapping appointments
+    const [conflicts] = await connection.query(
+      `
+      SELECT id
+      FROM appointments
+      WHERE doctorId = ?
+      AND status IN ('REQUESTED', 'APPROVED')
+      AND (
+          requestedStart < ?
+          AND requestedEnd > ?
+      )
+      `,
+      [doctorId, requestedEnd, requestedStart]
+    );
+
+    if (conflicts.length > 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        ok: false,
+        error: "Selected time slot is already booked",
+      });
+    }
+
+    // Create appointment
+    const [result] = await connection.query(
+      `
+      INSERT INTO appointments
+      (
+        patientId,
+        doctorId,
+        requestedStart,
+        requestedEnd,
+        appointmentType,
+        patientNote,
+        status,
+        paymentStatus,
+        stripePaymentId,
+        consultationFee
+      )
+      VALUES
+      (
+        ?, ?, ?, ?, ?, ?,
+        'REQUESTED',
+        'PAID',
+        ?,
+        ?
+      )
+      `,
+      [
+        patientId,
+        doctorId,
+        requestedStart,
+        requestedEnd,
+        appointmentType,
+        patientNote || null,
+        paymentIntentId,
+        CONSULTATION_FEE / 100,
+      ]
+    );
+
+    await connection.commit();
+
+    console.log("PAYMENT CONFIRMED", {
+      appointmentId: result.insertId,
+      paymentIntentId,
+      patientId,
+      doctorId,
+      amount: CONSULTATION_FEE / 100,
+      timestamp: new Date(),
+    });
+
+    // Socket notification
     const io = req.app.get("io");
+
     if (io) {
       io.to(`user:${patientId}`).emit("appointment-booked", {
         appointmentId: result.insertId,
@@ -112,33 +173,22 @@ router.post("/confirm", authRequired, async (req, res) => {
     return res.json({
       ok: true,
       appointmentId: result.insertId,
+      paymentIntentId,
+      amount: CONSULTATION_FEE / 100,
       message: "Payment confirmed and appointment booked!",
     });
+
   } catch (err) {
+    await connection.rollback();
+
     console.error("POST /api/payments/confirm error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+
+    return res.status(500).json({
+      ok: false,
+      error: err.message,
+    });
+
+  } finally {
+    connection.release();
   }
 });
-
-// ─── GET /api/payments/status/:appointmentId ─────────────────────────────────
-router.get("/status/:appointmentId", authRequired, async (req, res) => {
-  try {
-    const { appointmentId } = req.params;
-
-    const [rows] = await pool.query(
-      `SELECT paymentStatus, stripePaymentId, consultationFee
-       FROM appointments WHERE id = ?`,
-      [appointmentId]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ ok: false, error: "Appointment not found" });
-    }
-
-    return res.json({ ok: true, ...rows[0] });
-  } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-export default router;
