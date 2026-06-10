@@ -4,6 +4,7 @@ import "./DoctorDashboard.css";
 import { api } from "../utils/api";
 import { socket, connectSocket } from "../utils/socket";
 import PaymentStatus from "../components/PaymentStatus";
+import Footer from "../components/Footer";
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
@@ -869,5 +870,6 @@ const [searchTerm, setSearchTerm] = useState("");
         </div>
       </div>
     </div>
+    <Footer />
   );
 }

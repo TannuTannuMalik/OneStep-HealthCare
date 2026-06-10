@@ -374,7 +374,7 @@ const styles = {
     gridTemplateColumns: "1fr 1.4fr",
     gap: 24,
   },
-
+  heroMiniLabel: { color: "#64748b", fontWeight: "700" },
   card: {
     background: "rgba(255,255,255,0.9)",
     backdropFilter: "blur(10px)",
@@ -383,7 +383,6 @@ const styles = {
     boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
     border: "1px solid rgba(255,255,255,0.6)",
   },
-
   cardTitle: {
     margin: "0 0 6px 0",
     fontSize: 20,
@@ -582,7 +581,6 @@ const styles = {
     fontSize: 13,
     color: "#334155",
   },
-
   dispenseBtn: {
     width: "100%",
     marginTop: 16,

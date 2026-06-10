@@ -22,8 +22,9 @@ import CreateReport from "./pages/CreateReport";
 import VideoCall from "./pages/VideoCall";
 import PharmacyDashboard from "./pages/PharmacyDashboard";
 import PharmacyHistory from "./pages/PharmacyHistory";
+import PharmacyLogin from "./pages/PharmacyLogin";
 import ChatBot from "./pages/ChatBot";
-
+import HealthAssistant from "./pages/HealthAssistant";
 export default function App() {
   return (
     <BrowserRouter>
@@ -113,6 +114,7 @@ export default function App() {
         />
 
         {/* Pharmacy Routes */}
+        <Route path="/pharmacy/login" element={<PharmacyLogin />} />
         <Route path="/pharmacy" element={<Navigate to="/pharmacy/dashboard" replace />} />
         <Route
           path="/pharmacy/dashboard"
@@ -130,7 +132,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
+<Route path="/health-assistant" element={<HealthAssistant />} />
         {/* 404 */}
         <Route
           path="*"
