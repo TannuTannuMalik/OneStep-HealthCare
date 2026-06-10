@@ -12,6 +12,7 @@ function PaymentForm({ doctorId, appointmentData, onSuccess, onBack }) {
   const elements = useElements();
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState("");
+  const [cardErr, setCardErr] = useState(""); // real-time card field error
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [doctorInfo, setDoctorInfo] = useState(null);
@@ -128,6 +129,11 @@ function PaymentForm({ doctorId, appointmentData, onSuccess, onBack }) {
                   invalid: { color: "#e63946" },
                 },
               }}
+              onChange={(e) => {
+                // Surface Stripe's human-readable error in real time
+                // e.g. "Your card number is incomplete", "Insufficient funds"
+                setCardErr(e.error ? e.error.message : "");
+              }}
             />
           ) : (
             <div style={{ opacity: 0.6 }}>
@@ -135,6 +141,10 @@ function PaymentForm({ doctorId, appointmentData, onSuccess, onBack }) {
             </div>
           )}
         </div>
+
+        {cardErr && (
+          <div style={styles.errBox}>⚠️ {cardErr}</div>
+        )}
 
         {payErr && (
           <div style={styles.errBox}>❌ {payErr}</div>
@@ -169,6 +179,11 @@ export default function BookAppointment() {
 
   const [stripePromise, setStripePromise] = useState(null);
   const [step, setStep] = useState(1); // 1 = form, 2 = payment, 3 = success
+  // Each time the user reaches step 2 this key increments.
+  // Passing it as `key` on <Elements> forces React to fully unmount and
+  // remount the CardElement subtree — clearing any previous card input.
+  // This is the recommended Stripe pattern for modal/multi-step flows.
+  const [paymentKey, setPaymentKey] = useState(0);
 
   const user = useMemo(() => {
     try {
@@ -222,6 +237,7 @@ export default function BookAppointment() {
       return;
     }
 
+    setPaymentKey((k) => k + 1); // force CardElement remount on (re-)entry
     setStep(2);
   };
 
@@ -338,7 +354,7 @@ export default function BookAppointment() {
         {step === 2 && stripePromise && (
           <>
             <h1 style={{ marginTop: 16 }}>Complete Payment</h1>
-            <Elements stripe={stripePromise}>
+            <Elements key={paymentKey} stripe={stripePromise}>
               <PaymentForm
                 doctorId={doctorId}
                 appointmentData={appointmentData}

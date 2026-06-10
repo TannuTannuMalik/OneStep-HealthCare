@@ -231,9 +231,30 @@ export default function Reports() {
                 )}
 
                 <div style={styles.details}>
-                  {r.diagnosis && <div><strong>Diagnosis:</strong> {r.diagnosis}</div>}
-                  {r.prescription && <div><strong>Prescription:</strong> {r.prescription}</div>}
-                  {r.improvementSuggestions && <div><strong>Suggestions:</strong> {r.improvementSuggestions}</div>}
+                  {r.diagnosis && (
+                    <div>
+                      <strong>Diagnosis:</strong> {r.diagnosis}
+                    </div>
+                  )}
+                  {r.prescription && (
+                    <div>
+                      <strong>Prescription:</strong> {r.prescription}
+                    </div>
+                  )}
+                  {r.prescription && hasBlockchain && (
+                    <div style={styles.rxBox}>
+                      <span style={{ fontWeight: 800 }}>🏥 Pharmacy Code: </span>
+                      <span style={styles.rxCode}>RX-2026-{r.id}</span>
+                      <span style={{ color: "#64748b", fontSize: 12, marginLeft: 8 }}>
+                        — give this code to your pharmacist
+                      </span>
+                    </div>
+                  )}
+                  {r.improvementSuggestions && (
+                    <div>
+                      <strong>Suggestions:</strong> {r.improvementSuggestions}
+                    </div>
+                  )}
                 </div>
 
                 {result && (
@@ -328,12 +349,10 @@ const styles = {
   metaText: { opacity: 0.8, marginTop: 6 },
   txText: { marginTop: 6, fontSize: 12, color: "#1b7a3c" },
   details: { marginTop: 14, lineHeight: 1.7 },
+  rxBox: { marginTop: 8, padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 14, lineHeight: 1.6 },
+  rxCode: { fontFamily: "monospace", fontWeight: 900, color: "#0f766e", fontSize: 15, letterSpacing: 1 },
   verifyBox: { marginTop: 14, borderRadius: 10, padding: 12 },
-  dispensedInfo: {
-    marginTop: 8, padding: "8px 12px", background: "#dbeafe",
-    border: "1px solid rgba(37,99,235,0.2)", borderRadius: 8,
-    fontSize: 13, color: "#1d4ed8", fontWeight: 700,
-  },
+  dispensedInfo: { marginTop: 8, padding: "8px 12px", background: "#dbeafe", border: "1px solid rgba(37,99,235,0.2)", borderRadius: 8, fontSize: 13, color: "#1d4ed8", fontWeight: 700 },
   actions: { marginTop: "16px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
   btn: { padding: "10px 16px", background: "#0f7f7c", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700 },
   btnOutline: { padding: "10px 16px", background: "white", border: "1px solid #0f7f7c", color: "#0f7f7c", borderRadius: "6px", cursor: "pointer", fontWeight: 700 },

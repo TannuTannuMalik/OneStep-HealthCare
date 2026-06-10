@@ -31,6 +31,8 @@ router.get(
 
           -- ✅ your table currently has patientNote (not reason)
           a.patientNote,
+          a.paymentStatus,
+          a.consultationFee,
 
           a.createdAt,
 
@@ -107,6 +109,8 @@ router.get(
 
           -- ✅ your table currently has patientNote (not reason)
           a.patientNote,
+          a.paymentStatus,
+          a.consultationFee,
 
           a.createdAt,
 

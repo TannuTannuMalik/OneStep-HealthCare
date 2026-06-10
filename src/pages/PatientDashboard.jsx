@@ -1,300 +1,360 @@
+import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { Link } from "react-router-dom";
-import { useEffect, useState, useMemo, useRef } from "react";
+import PaymentStatus from "../components/PaymentStatus";
 import { api } from "../utils/api";
 
-export default function PharmacyDashboard() {
-  const [pending, setPending] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [dispensing, setDispensing] = useState(null); // reportId currently being dispensed
-  const [errMsg, setErrMsg] = useState("");
-  const [toast, setToast] = useState({ show: false, message: "", type: "info" });
-  const toastTimerRef = useRef(null);
+export default function PatientDashboard() {
+  const [appointments, setAppointments] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [loadingAppts, setLoadingAppts] = useState(true);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [apptErr, setApptErr] = useState("");
+  const [reportErr, setReportErr] = useState("");
 
   const user = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("user") || "null"); }
     catch { return null; }
   }, []);
 
-  const showToast = (message, type = "info") => {
-    setToast({ show: true, message, type });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => {
-      setToast((t) => ({ ...t, show: false }));
-    }, 3500);
-  };
-
-  const loadPending = async () => {
-    try {
-      setLoading(true);
-      setErrMsg("");
-      const res = await api.get("/pharmacy/pending");
-      if (res.data.ok) setPending(res.data.data || []);
-    } catch (e) {
-      setErrMsg(e.response?.data?.error || "Failed to load pending prescriptions");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadPending();
+    // Fetch appointments
+    api.get("/appointments/patient/me")
+      .then(res => { if (res.data.ok) setAppointments(res.data.data || []); })
+      .catch(e => setApptErr(e.response?.data?.error || "Failed to load appointments"))
+      .finally(() => setLoadingAppts(false));
+
+    // Fetch reports
+    api.get("/reports/patient/me")
+      .then(res => { if (res.data.ok) setReports(res.data.data || []); })
+      .catch(e => setReportErr(e.response?.data?.error || "Failed to load reports"))
+      .finally(() => setLoadingReports(false));
   }, []);
 
-  const handleDispense = async (reportId) => {
-    try {
-      setDispensing(reportId);
-      const res = await api.post(`/pharmacy/dispense/${reportId}`);
-      if (res.data.ok) {
-        showToast(`✅ Prescription #${reportId} dispensed on blockchain`, "success");
-        // remove from pending list
-        setPending((prev) => prev.filter((r) => r.id !== reportId));
-      }
-    } catch (e) {
-      showToast(e.response?.data?.error || "Dispense failed", "error");
-    } finally {
-      setDispensing(null);
-    }
+  const upcoming = appointments.filter(a =>
+    ["PENDING", "CONFIRMED"].includes(a.status)
+  );
+  const recentReports = reports.slice(0, 3);
+
+  const statusColor = {
+    PENDING:   { bg: "#fef9c3", text: "#92400e" },
+    CONFIRMED: { bg: "#dcfce7", text: "#166534" },
+    COMPLETED: { bg: "#dbeafe", text: "#1e40af" },
+    CANCELLED: { bg: "#fee2e2", text: "#991b1b" },
+  };
+
+  const fmtDate = (val) => {
+    if (!val) return "—";
+    return new Date(val).toLocaleDateString("en-NZ", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  };
+
+  const fmtDateTime = (val) => {
+    if (!val) return "—";
+    return new Date(val).toLocaleString("en-NZ", {
+      day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
   };
 
   return (
-    <div>
+    <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
       <Navbar />
 
-      {toast.show && (
-        <div style={{
-          position: "fixed", top: 20, right: 20, zIndex: 9999,
-          background: toast.type === "success" ? "#dcfce7" : "#fee2e2",
-          color: toast.type === "success" ? "#166534" : "#991b1b",
-          padding: "14px 18px", borderRadius: 14, fontWeight: "700",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-        }}>
-          {toast.message}
-        </div>
-      )}
+      <main style={styles.main}>
 
-      <main style={styles.page}>
-
-        {/* HERO */}
+        {/* ── Hero ── */}
         <section style={styles.hero}>
-          <div style={styles.heroLeft}>
-            <div style={styles.heroTag}>Pharmacy Portal</div>
+          <div>
+            <div style={styles.tag}>Patient Portal</div>
             <h1 style={styles.heroTitle}>
-              Welcome,<br />{user?.fullName || "Pharmacist"}
+              Welcome,<br />{user?.fullName || "Patient"}
             </h1>
-            <p style={styles.heroText}>
-              View pending prescriptions verified on blockchain, dispense
-              medications, and track dispensing history — all from one place.
+            <p style={styles.heroSub}>
+              Manage your appointments, view consultation reports, and
+              access your blockchain-verified prescriptions.
             </p>
-            <div style={styles.heroButtons}>
-              <Link to="/pharmacy/history" style={styles.primaryBtn}>📋 View History</Link>
+            <div style={styles.heroActions}>
+              <Link to="/find-doctor" style={styles.primaryBtn}>🔍 Find a Doctor</Link>
+              <Link to="/appointments" style={styles.outlineBtn}>📅 My Appointments</Link>
+              <Link to="/reports" style={styles.outlineBtn}>📄 My Reports</Link>
             </div>
           </div>
 
-          <div style={styles.heroCard}>
-            <div style={styles.heroMiniCard}>
-              <div style={styles.heroMiniNumber}>{pending.length}</div>
-              <div style={styles.heroMiniLabel}>Pending Prescriptions</div>
-            </div>
-            <div style={styles.heroMiniCard}>
-              <div style={styles.heroMiniNumber}>⛓️</div>
-              <div style={styles.heroMiniLabel}>Blockchain Verified</div>
-            </div>
-            <div style={styles.heroMiniCard}>
-              <div style={styles.heroMiniNumber}>Active</div>
-              <div style={styles.heroMiniLabel}>Account Status</div>
-            </div>
+          {/* Stats */}
+          <div style={styles.statsGrid}>
+            <Stat value={appointments.length} label="Total Appointments" />
+            <Stat value={upcoming.length} label="Upcoming" />
+            <Stat value={reports.length} label="Reports" />
+            <Stat
+              value={reports.filter(r => r.blockchainTx).length}
+              label="Blockchain Verified"
+              icon="⛓️"
+            />
           </div>
         </section>
 
-        {/* PENDING PRESCRIPTIONS */}
-        <section style={styles.card}>
-          <div style={styles.cardTitle}>
-            <h2 style={{ margin: 0 }}>💊 Pending Prescriptions</h2>
-            <button onClick={loadPending} style={styles.refreshBtn}>
-              🔄 Refresh
-            </button>
-          </div>
+        {/* ── Quick Actions ── */}
+        <div style={styles.quickRow}>
+          {[
+            { icon: "🩺", label: "Book Appointment", to: "/find-doctor", color: "#0f766e" },
+            { icon: "📅", label: "View Appointments", to: "/appointments", color: "#2563eb" },
+            { icon: "📄", label: "View Reports", to: "/reports", color: "#7c3aed" },
+          ].map(q => (
+            <Link key={q.to} to={q.to} style={{ ...styles.quickCard, borderTop: `4px solid ${q.color}` }}>
+              <span style={{ fontSize: 28 }}>{q.icon}</span>
+              <span style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>{q.label}</span>
+            </Link>
+          ))}
+        </div>
 
-          {loading ? (
-            <p style={styles.muted}>Loading prescriptions...</p>
-          ) : pending.length === 0 ? (
-            <div style={styles.emptyBox}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-              <div style={{ fontWeight: 800, fontSize: 18, color: "#0f172a" }}>
-                No pending prescriptions
-              </div>
-              <div style={{ color: "#64748b", marginTop: 6 }}>
-                All prescriptions have been dispensed.
-              </div>
+        <div style={styles.grid}>
+          {/* ── Upcoming Appointments ── */}
+          <section style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>📅 Upcoming Appointments</h2>
+              <Link to="/appointments" style={styles.viewAll}>View all →</Link>
             </div>
-          ) : (
-            pending.map((r) => (
-              <div key={r.id} style={styles.rowCard}>
-                <div style={styles.left}>
 
-                  {/* Header row */}
-                  <div style={styles.rowMain}>
-                    <b>RX-2026-{r.id}</b>
-                    <span style={styles.dot}>•</span>
-                    <span style={styles.muted}>{r.patientName}</span>
-                    <span style={styles.dot}>•</span>
-                    <span style={styles.muted}>Dr. {r.doctorName}</span>
+            {loadingAppts && <p style={styles.muted}>Loading...</p>}
+            {apptErr && <div style={styles.errBox}>❌ {apptErr}</div>}
+
+            {!loadingAppts && !apptErr && upcoming.length === 0 && (
+              <div style={styles.empty}>
+                <div style={{ fontSize: 40 }}>📅</div>
+                <p>No upcoming appointments.</p>
+                <Link to="/find-doctor" style={styles.primaryBtn}>Find a Doctor</Link>
+              </div>
+            )}
+
+            {upcoming.slice(0, 4).map(a => {
+              const sc = statusColor[a.status] || { bg: "#f1f5f9", text: "#475569" };
+              return (
+                <div key={a.id} style={styles.row}>
+                  <div style={styles.rowIcon}>🩺</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowTitle}>Dr. {a.doctorName}</div>
+                    <div style={styles.rowSub}>{a.specialty}</div>
+                    <div style={styles.rowSub}>
+                      {fmtDateTime(a.requestedStart)}
+                      {a.appointmentType && ` · ${a.appointmentType}`}
+                    </div>
+                    {a.reason && (
+                      <div style={{ ...styles.rowSub, marginTop: 4, fontStyle: "italic" }}>
+                        "{a.reason}"
+                      </div>
+                    )}
                   </div>
-
-                  {/* Specialty + date */}
-                  <div style={styles.muted}>
-                    {r.specialty} &nbsp;|&nbsp;{" "}
-                    {new Date(r.createdAt).toLocaleDateString("en-NZ", {
-                      day: "numeric", month: "short", year: "numeric",
-                    })}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" }}>
+                    <span style={{ ...styles.badge, background: sc.bg, color: sc.text }}>
+                      {a.status}
+                    </span>
+                    <PaymentStatus status={a.paymentStatus} fee={a.consultationFee} size="xs" />
                   </div>
+                </div>
+              );
+            })}
+          </section>
 
-                  {/* Diagnosis */}
+          {/* ── Recent Reports ── */}
+          <section style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h2 style={styles.cardTitle}>📄 Recent Reports</h2>
+              <Link to="/reports" style={styles.viewAll}>View all →</Link>
+            </div>
+
+            {loadingReports && <p style={styles.muted}>Loading...</p>}
+            {reportErr && <div style={styles.errBox}>❌ {reportErr}</div>}
+
+            {!loadingReports && !reportErr && recentReports.length === 0 && (
+              <div style={styles.empty}>
+                <div style={{ fontSize: 40 }}>📄</div>
+                <p>No consultation reports yet.</p>
+              </div>
+            )}
+
+            {recentReports.map(r => (
+              <div key={r.id} style={styles.row}>
+                <div style={styles.rowIcon}>📋</div>
+                <div style={{ flex: 1 }}>
+                  <div style={styles.rowTitle}>Dr. {r.doctorName}</div>
+                  <div style={styles.rowSub}>{r.specialty} · {fmtDate(r.createdAt)}</div>
                   {r.diagnosis && (
                     <div style={styles.detailBox}>
-                      <span style={styles.detailLabel}>🩺 Diagnosis:</span>
-                      <span style={styles.detailText}>{r.diagnosis}</span>
+                      <span style={styles.detailLabel}>Diagnosis:</span> {r.diagnosis}
                     </div>
                   )}
-
-                  {/* Prescription text */}
                   {r.prescription && (
                     <div style={styles.detailBox}>
-                      <span style={styles.detailLabel}>💊 Prescription:</span>
-                      <span style={styles.detailText}>{r.prescription}</span>
+                      <span style={styles.detailLabel}>💊 Prescription:</span> {r.prescription}
                     </div>
                   )}
-
-                  {/* Blockchain badge */}
-                  <div style={{ marginTop: 12 }}>
-                    <span style={styles.blockchain}>⛓️ Verified on Blockchain</span>
-                  </div>
+                  {r.prescription && r.blockchainTx && (
+                    <div style={{ ...styles.detailBox, background: "#f0fdf4", border: "1px solid #bbf7d0", marginTop: 6 }}>
+                      <span style={styles.detailLabel}>🏥 Pharmacy Code:</span>{" "}
+                      <span style={{ fontFamily: "monospace", fontWeight: 900, color: "#0f766e", letterSpacing: 1 }}>
+                        RX-2026-{r.id}
+                      </span>
+                      <span style={{ color: "#64748b", fontSize: 12, marginLeft: 8 }}>
+                        (give this to your pharmacist)
+                      </span>
+                    </div>
+                  )}
                 </div>
-
-                <div style={styles.right}>
-                  <span style={styles.validBadge}>✅ Valid</span>
-                  <button
-                    onClick={() => handleDispense(r.id)}
-                    disabled={dispensing === r.id}
-                    style={{
-                      ...styles.dispenseBtn,
-                      opacity: dispensing === r.id ? 0.6 : 1,
-                      cursor: dispensing === r.id ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {dispensing === r.id ? "Dispensing..." : "💊 Dispense"}
-                  </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                  {r.blockchainTx && (
+                    <span style={styles.chainBadge}>⛓️ Verified</span>
+                  )}
+                  {r.pdfUrl && (
+                    <a
+                      href={r.pdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.downloadBtn}
+                    >
+                      ⬇ PDF
+                    </a>
+                  )}
                 </div>
               </div>
-            ))
-          )}
-        </section>
-
-        {errMsg && (
-          <div style={styles.errorBox}>{errMsg}</div>
-        )}
+            ))}
+          </section>
+        </div>
 
       </main>
-
       <Footer />
     </div>
   );
 }
 
+function Stat({ value, label, icon }) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statValue}>{icon || value}</div>
+      {icon && <div style={{ fontSize: 22, fontWeight: 900, color: "#0f766e" }}>{value}</div>}
+      <div style={styles.statLabel}>{label}</div>
+    </div>
+  );
+}
+
 const styles = {
-  page: { maxWidth: 1400, margin: "0 auto", padding: "30px" },
+  main: { maxWidth: 1200, margin: "0 auto", padding: "28px 20px" },
+
   hero: {
-    background: "linear-gradient(135deg,#ecfeff,#f8fafc)",
-    borderRadius: 32, padding: "50px",
-    display: "grid", gridTemplateColumns: "1.2fr 420px",
-    gap: "40px", alignItems: "center", marginBottom: "30px",
+    background: "linear-gradient(135deg,#ecfeff,#f0f9ff)",
+    borderRadius: 28, padding: "44px 40px",
+    display: "grid", gridTemplateColumns: "1fr auto",
+    gap: 40, alignItems: "center", marginBottom: 24,
+    flexWrap: "wrap",
   },
-  heroLeft: {},
-  heroTag: {
-    display: "inline-block", background: "rgba(15,127,124,0.12)",
-    color: "#0f7f7c", padding: "10px 18px", borderRadius: "999px",
-    fontWeight: "900", fontSize: "14px", marginBottom: "20px",
+  tag: {
+    display: "inline-block", background: "rgba(15,118,110,0.1)",
+    color: "#0f766e", padding: "8px 16px", borderRadius: 999,
+    fontWeight: 900, fontSize: 13, marginBottom: 16,
   },
   heroTitle: {
-    fontSize: "68px", lineHeight: "1.05", fontWeight: "900",
-    color: "#0f172a", marginBottom: "20px",
+    fontSize: 54, fontWeight: 900, color: "#0f172a",
+    margin: "0 0 14px 0", lineHeight: 1.1,
   },
-  heroText: {
-    fontSize: "18px", lineHeight: "1.8", color: "#475569", maxWidth: "700px",
+  heroSub: { color: "#475569", fontSize: 16, lineHeight: 1.7, maxWidth: 560, margin: "0 0 24px 0" },
+  heroActions: { display: "flex", gap: 12, flexWrap: "wrap" },
+
+  statsGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr",
+    gap: 14, minWidth: 280,
   },
-  heroButtons: { display: "flex", gap: "14px", marginTop: "30px", flexWrap: "wrap" },
-  primaryBtn: {
-    textDecoration: "none", background: "linear-gradient(135deg,#0f766e,#14b8a6)",
-    color: "#fff", padding: "14px 22px", borderRadius: 16, fontWeight: "900",
-    boxShadow: "0 12px 24px rgba(15,118,110,0.25)",
+  statCard: {
+    background: "#fff", borderRadius: 18, padding: "18px 20px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
   },
-  heroCard: {
-    background: "#fff", borderRadius: "28px", padding: "28px",
-    display: "grid", gap: "18px", boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+  statValue: { fontSize: 34, fontWeight: 900, color: "#0f766e", lineHeight: 1 },
+  statLabel: { color: "#64748b", fontSize: 12, fontWeight: 700, marginTop: 6 },
+
+  quickRow: {
+    display: "grid", gridTemplateColumns: "repeat(3,1fr)",
+    gap: 14, marginBottom: 24,
   },
-  heroMiniCard: { background: "#f8fafc", borderRadius: "20px", padding: "22px" },
-  heroMiniNumber: {
-    fontSize: "42px", fontWeight: "900", color: "#0f7f7c", marginBottom: "6px",
+  quickCard: {
+    background: "#fff", borderRadius: 16, padding: "20px 18px",
+    display: "flex", flexDirection: "column", gap: 10,
+    textDecoration: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+    transition: "transform 0.15s",
   },
-  heroMiniLabel: { color: "#64748b", fontWeight: "700" },
+
+  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 },
+
   card: {
-    marginTop: 24, background: "#fff", border: "1px solid rgba(0,0,0,0.05)",
-    borderRadius: 28, padding: 28, boxShadow: "0 14px 40px rgba(0,0,0,0.05)",
+    background: "#fff", borderRadius: 24, padding: 24,
+    boxShadow: "0 8px 30px rgba(0,0,0,0.05)",
+    border: "1px solid rgba(0,0,0,0.04)",
   },
-  cardTitle: {
+  cardHeader: {
     display: "flex", justifyContent: "space-between",
-    alignItems: "center", marginBottom: 18,
+    alignItems: "center", marginBottom: 16,
   },
-  refreshBtn: {
-    background: "#f1f5f9", border: "1px solid #e2e8f0", color: "#0f172a",
-    padding: "10px 18px", borderRadius: 12, fontWeight: "800",
-    cursor: "pointer", fontSize: 14,
+  cardTitle: { margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a" },
+  viewAll: { color: "#0f766e", fontWeight: 800, fontSize: 13, textDecoration: "none" },
+
+  row: {
+    display: "flex", gap: 14, alignItems: "flex-start",
+    padding: "14px 0", borderBottom: "1px solid #f1f5f9",
   },
-  rowCard: {
-    display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-    gap: 16, padding: 24, borderRadius: 24, background: "#f8fafc",
-    border: "1px solid rgba(0,0,0,0.05)", marginTop: 18, flexWrap: "wrap",
+  rowIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    background: "#f0fdf4", display: "flex",
+    alignItems: "center", justifyContent: "center",
+    fontSize: 18, flexShrink: 0,
   },
-  left: { minWidth: 260, flex: 1 },
-  right: {
-    display: "flex", flexDirection: "column",
-    gap: 10, alignItems: "flex-end",
+  rowTitle: { fontWeight: 800, fontSize: 15, color: "#0f172a" },
+  rowSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
+
+  badge: {
+    padding: "5px 12px", borderRadius: 999,
+    fontWeight: 800, fontSize: 12, whiteSpace: "nowrap",
+    alignSelf: "flex-start",
   },
-  rowMain: { fontSize: 16, marginBottom: 8, display: "flex", flexWrap: "wrap", gap: 4 },
-  muted: { color: "#64748b", fontSize: 14, marginBottom: 6 },
-  dot: { margin: "0 6px", color: "#cbd5e1" },
+
   detailBox: {
-    marginTop: 10, padding: "10px 14px", borderRadius: 12,
-    background: "#fff", border: "1px solid #e2e8f0",
-    display: "flex", flexDirection: "column", gap: 4,
+    marginTop: 6, fontSize: 13, color: "#334155",
+    background: "#f8fafc", padding: "6px 10px",
+    borderRadius: 8, lineHeight: 1.5,
   },
-  detailLabel: { fontWeight: 800, fontSize: 12, color: "#0f766e" },
-  detailText: { fontSize: 14, color: "#0f172a", lineHeight: 1.6 },
-  blockchain: {
-    background: "#dce8ff", color: "#1a3a6b",
-    padding: "6px 14px", borderRadius: "999px",
-    fontWeight: "800", fontSize: 13, display: "inline-block",
+  detailLabel: { fontWeight: 800, color: "#0f766e" },
+
+  chainBadge: {
+    background: "#dce8ff", color: "#1e3a8a",
+    padding: "4px 10px", borderRadius: 999,
+    fontWeight: 800, fontSize: 12,
   },
-  validBadge: {
-    background: "#dcfce7", color: "#166534",
-    padding: "8px 16px", borderRadius: "999px",
-    fontWeight: "800", fontSize: 13,
+  downloadBtn: {
+    background: "#f1f5f9", color: "#0f172a",
+    padding: "5px 12px", borderRadius: 8,
+    fontWeight: 700, fontSize: 12, textDecoration: "none",
   },
-  dispenseBtn: {
-    border: "none",
+
+  primaryBtn: {
     background: "linear-gradient(135deg,#0f766e,#14b8a6)",
-    color: "#fff", padding: "14px 22px", borderRadius: 14,
-    fontWeight: "900", fontSize: 15,
-    boxShadow: "0 8px 20px rgba(15,118,110,0.25)",
+    color: "#fff", padding: "12px 20px", borderRadius: 14,
+    fontWeight: 900, fontSize: 14, textDecoration: "none",
+    boxShadow: "0 8px 20px rgba(15,118,110,0.2)",
   },
-  emptyBox: {
-    textAlign: "center", padding: "60px 20px",
-    background: "#f8fafc", borderRadius: 24, marginTop: 18,
+  outlineBtn: {
+    background: "#fff", color: "#0f172a",
+    padding: "12px 18px", borderRadius: 14,
+    fontWeight: 800, fontSize: 14, textDecoration: "none",
+    border: "1px solid #e2e8f0",
   },
-  errorBox: {
-    marginTop: 20, background: "#fee2e2", color: "#991b1b",
-    padding: 14, borderRadius: 14, fontWeight: "700",
+
+  muted: { color: "#94a3b8", fontSize: 14 },
+  empty: {
+    textAlign: "center", padding: "40px 20px",
+    color: "#64748b", display: "flex",
+    flexDirection: "column", alignItems: "center", gap: 10,
+  },
+  errBox: {
+    background: "#fee2e2", color: "#991b1b",
+    padding: 12, borderRadius: 12, fontWeight: 700, fontSize: 14,
   },
 };
