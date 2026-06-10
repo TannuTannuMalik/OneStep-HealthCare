@@ -315,6 +315,7 @@ const [searchTerm, setSearchTerm] = useState("");
   const totalAppts = appointments.length;
 
   return (
+    <>
     <div className="doc-wrap">
       <div className="doc-shell">
         <div className="doc-app">
@@ -871,5 +872,6 @@ const [searchTerm, setSearchTerm] = useState("");
       </div>
     </div>
     <Footer />
+    </>
   );
 }
