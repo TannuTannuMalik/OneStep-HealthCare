@@ -9,60 +9,33 @@ export default function Register() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // UI role
   const [role, setRole] = useState("patient");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // ✅ Map UI role → backend role
-  // Pharmacist uses ADMIN internally
   const mapRole = (r) => {
     if (r === "doctor") return "DOCTOR";
-
     if (r === "admin") return "ADMIN";
-
-    if (r === "pharmacist") return "ADMIN";
-
+    if (r === "pharmacist") return "PHARMACIST";  // ← FIXED
     return "PATIENT";
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
     setLoading(true);
-
     try {
-      const payload = {
-        fullName,
-        email,
-        password,
-        role: mapRole(role),
-      };
-
-      const res = await api.post(
-        "/auth/register",
-        payload
-      );
-
+      const payload = { fullName, email, password, role: mapRole(role) };
+      const res = await api.post("/auth/register", payload);
       if (res.data.ok) {
         alert("Registered ✅ Now login");
-
         navigate("/login");
       } else {
-        setError(
-          res.data.error ||
-            "Registration failed"
-        );
+        setError(res.data.error || "Registration failed");
       }
     } catch (err) {
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Registration failed"
-      );
+      setError(err.response?.data?.error || err.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -71,125 +44,38 @@ export default function Register() {
   return (
     <div>
       <Navbar />
-
       <main style={styles.main}>
         <div style={styles.card}>
           <h2>Register</h2>
+          <p style={styles.sub}>Create an account (Patient / Doctor / Admin / Pharmacist)</p>
+          {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+          <form onSubmit={onSubmit} style={styles.form}>
+            <label style={styles.label}>Full Name</label>
+            <input style={styles.input} placeholder="Your name" required
+              value={fullName} onChange={(e) => setFullName(e.target.value)} />
 
-          <p style={styles.sub}>
-            Create an account (
-            Patient / Doctor / Admin /
-            Pharmacist)
-          </p>
+            <label style={styles.label}>Email</label>
+            <input style={styles.input} type="email" placeholder="you@example.com" required
+              value={email} onChange={(e) => setEmail(e.target.value)} />
 
-          {error && (
-            <p
-              style={{
-                color: "red",
-                marginTop: 10,
-              }}
-            >
-              {error}
-            </p>
-          )}
+            <label style={styles.label}>Password</label>
+            <input style={styles.input} type="password" placeholder="••••••••" required
+              value={password} onChange={(e) => setPassword(e.target.value)} />
 
-          <form
-            onSubmit={onSubmit}
-            style={styles.form}
-          >
-            {/* Full Name */}
-            <label style={styles.label}>
-              Full Name
-            </label>
-
-            <input
-              style={styles.input}
-              placeholder="Your name"
-              required
-              value={fullName}
-              onChange={(e) =>
-                setFullName(e.target.value)
-              }
-            />
-
-            {/* Email */}
-            <label style={styles.label}>
-              Email
-            </label>
-
-            <input
-              style={styles.input}
-              type="email"
-              placeholder="you@example.com"
-              required
-              value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
-            />
-
-            {/* Password */}
-            <label style={styles.label}>
-              Password
-            </label>
-
-            <input
-              style={styles.input}
-              type="password"
-              placeholder="••••••••"
-              required
-              value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
-            />
-
-            {/* Role */}
-            <label style={styles.label}>
-              Role
-            </label>
-
-            <select
-              value={role}
-              onChange={(e) =>
-                setRole(e.target.value)
-              }
-              style={styles.input}
-            >
-              <option value="patient">
-                Patient
-              </option>
-
-              <option value="doctor">
-                Doctor
-              </option>
-
-              <option value="admin">
-                Admin
-              </option>
-
-              <option value="pharmacist">
-                Pharmacist
-              </option>
+            <label style={styles.label}>Role</label>
+            <select value={role} onChange={(e) => setRole(e.target.value)} style={styles.input}>
+              <option value="patient">Patient</option>
+              <option value="doctor">Doctor</option>
+              <option value="admin">Admin</option>
+              <option value="pharmacist">Pharmacist</option>
             </select>
 
-            {/* Button */}
-            <button
-              style={styles.btn}
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? "Creating..."
-                : "Create Account"}
+            <button style={styles.btn} type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create Account"}
             </button>
           </form>
-
           <p style={styles.bottom}>
-            Already have an account?{" "}
-            <Link to="/login">
-              Login
-            </Link>
+            Already have an account? <Link to="/login">Login</Link>
           </p>
         </div>
       </main>
@@ -198,54 +84,12 @@ export default function Register() {
 }
 
 const styles = {
-  main: {
-    padding: 18,
-    display: "grid",
-    placeItems: "center",
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: 460,
-    border: "1px solid #e8e8e8",
-    borderRadius: 14,
-    padding: 18,
-  },
-
-  sub: {
-    marginTop: 6,
-    color: "#555",
-  },
-
-  form: {
-    display: "grid",
-    gap: 10,
-    marginTop: 12,
-  },
-
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-  },
-
-  input: {
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #ccc",
-  },
-
-  btn: {
-    marginTop: 6,
-    padding: 10,
-    borderRadius: 10,
-    border: "none",
-    background: "#222",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  bottom: {
-    marginTop: 12,
-  },
+  main: { padding: 18, display: "grid", placeItems: "center" },
+  card: { width: "100%", maxWidth: 460, border: "1px solid #e8e8e8", borderRadius: 14, padding: 18 },
+  sub: { marginTop: 6, color: "#555" },
+  form: { display: "grid", gap: 10, marginTop: 12 },
+  label: { fontSize: 13, fontWeight: 700 },
+  input: { padding: 10, borderRadius: 10, border: "1px solid #ccc" },
+  btn: { marginTop: 6, padding: 10, borderRadius: 10, border: "none", background: "#222", color: "#fff", fontWeight: 800, cursor: "pointer" },
+  bottom: { marginTop: 12 },
 };
